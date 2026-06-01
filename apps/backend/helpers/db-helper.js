@@ -2,6 +2,21 @@ const config = require("../config")
 const { genRoomId } = require("../utils")
 const logger = require("../logger")
 
+function isRoomAdmin(room, actorUid) {
+	if (!room || !actorUid) return false;
+	if (room.created_by === actorUid) return true;
+	return Array.isArray(room.admins) && room.admins.includes(actorUid);
+}
+
+async function ensureUsersExist(userIds) {
+	for (const uid of userIds) {
+		const userSnap = await config.firebase.db.collection('auth_users').doc(uid).get();
+		if (!userSnap.exists) {
+			throw `User not found: ${uid}`;
+		}
+	}
+}
+
 module.exports = {
 	getIdentityKeysForUsers: async function(userIds) {
 		const keys = {};
@@ -263,6 +278,9 @@ module.exports = {
 	},
 
 	sendFriendRequest: async function (senderUid, receiverUid) {
+		if (!senderUid || !receiverUid) throw "Sender and receiver are required";
+		if (senderUid === receiverUid) throw "Cannot send a friend request to yourself";
+
 		const senderSnapshot = await config.firebase.db.collection('auth_users').doc(senderUid).get();
 		const receiverSnapshot = await config.firebase.db.collection('auth_users').doc(receiverUid).get();
 
@@ -385,6 +403,15 @@ module.exports = {
 	updateUserData: async function (uid, newData) {
 		try {
 			if(!uid) throw "uid not found"
+			if (!newData || typeof newData !== 'object') throw "newData not found"
+
+			const allowedKeys = ['name', 'photo_url'];
+			const filteredEntries = Object.entries(newData).filter(([key]) => allowedKeys.includes(key));
+			if (filteredEntries.length === 0) {
+				throw "No supported fields provided for update";
+			}
+
+			const sanitizedData = Object.fromEntries(filteredEntries);
 
 			const userRef = config.firebase.db.collection('auth_users').doc(uid);
 			const userSnap = await userRef.get();
@@ -392,8 +419,8 @@ module.exports = {
 				throw "User doesnt exist"
 			} 
 
-			await userRef.update(newData);
-			return { success: `User: ${uid} updated successfully with data ${JSON.stringify(newData)}` }
+			await userRef.update(sanitizedData);
+			return { success: `User: ${uid} updated successfully with data ${JSON.stringify(sanitizedData)}` }
 		} catch (error) {
 			throw error
 		}
@@ -407,6 +434,7 @@ module.exports = {
 
 		const uniqueMembers = Array.from(new Set([creatorUid, ...(memberUids || [])]));
 		if (uniqueMembers.length < 2) throw "Group must have at least 2 members";
+		await ensureUsersExist(uniqueMembers);
 
 		const roomId = `group_${require('uuid').v4()}`;
 		const roomRef = config.firebase.db.collection('rooms').doc(roomId);
@@ -448,10 +476,12 @@ module.exports = {
 		if (!roomSnap.exists) throw "Room not found";
 		const room = roomSnap.data();
 		if (!room.is_group) throw "Not a group room";
+		if (!isRoomAdmin(room, actorUid)) throw "Only group admins can add members";
 
 		const currentMembers = room.members || [];
 		const toAdd = memberUids.filter(uid => !currentMembers.includes(uid));
 		if (toAdd.length === 0) return { success: "No new members to add", roomId };
+		await ensureUsersExist(toAdd);
 
 		await roomRef.update({
 			members: config.firebase.admin.firestore.FieldValue.arrayUnion(...toAdd)
@@ -479,10 +509,23 @@ module.exports = {
 		if (!roomSnap.exists) throw "Room not found";
 		const room = roomSnap.data();
 		if (!room.is_group) throw "Not a group room";
+		if (!room.members?.includes(memberUid)) throw "Member not found in group";
+		if (!isRoomAdmin(room, actorUid) && actorUid !== memberUid) {
+			throw "Only group admins can remove other members";
+		}
+		if (room.created_by === memberUid) {
+			throw "Group creator cannot be removed";
+		}
 
-		await roomRef.update({
+		const roomUpdates = {
 			members: config.firebase.admin.firestore.FieldValue.arrayRemove(memberUid)
-		});
+		};
+
+		if (Array.isArray(room.admins) && room.admins.includes(memberUid)) {
+			roomUpdates.admins = config.firebase.admin.firestore.FieldValue.arrayRemove(memberUid);
+		}
+
+		await roomRef.update(roomUpdates);
 
 		const userRef = config.firebase.db.collection('auth_users').doc(memberUid);
 		await userRef.update({
@@ -507,6 +550,12 @@ module.exports = {
 		if (Object.keys(filteredUpdates).length === 0) return { success: "No updates", roomId };
 
 		const roomRef = config.firebase.db.collection('rooms').doc(roomId);
+		const roomSnap = await roomRef.get();
+		if (!roomSnap.exists) throw "Room not found";
+		const room = roomSnap.data();
+		if (!room.is_group) throw "Not a group room";
+		if (!isRoomAdmin(room, actorUid)) throw "Only group admins can update group info";
+
 		await roomRef.update(filteredUpdates);
 		return { success: "Group updated", roomId, updates: filteredUpdates };
 	},
@@ -520,6 +569,7 @@ module.exports = {
 		if (!roomSnap.exists) throw "Room not found";
 		const room = roomSnap.data();
 		if (!room.is_group) throw "Not a group room";
+		if (room.created_by !== actorUid) throw "Only the group creator can delete the group";
 
 		// Remove roomId from each member's joined_rooms
 		const batch = config.firebase.db.batch();

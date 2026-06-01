@@ -1,10 +1,10 @@
 const cors = require('cors');
 const Router = require('express').Router;
-const jwt = require('jsonwebtoken');
 const config = require('../config');
 const dbHelper = require('../helpers/db-helper');
 const logger = require('../logger');
 const utils = require('../utils');
+const authHelper = require('../helpers/auth-helper');
 
 const router = new Router();
 
@@ -33,11 +33,7 @@ router.post('/session', (req, res) => {
 		const expiresIn = 60 * 60 * 24 * 5 * 1000; //5 days
 		config.firebase.admin.auth().createSessionCookie(idToken, { expiresIn })
 			.then(sessionCookie => {
-				const options = { maxAge: expiresIn, httpOnly: true, secure: false, sameSite: 'lax' }
-				if(config.PORT != 5000) {
-					options.secure = true;
-					options.sameSite = 'none'
-				}
+				const options = authHelper.getSessionCookieOptions(expiresIn);
 				res.cookie('session', sessionCookie, options);
 				res.json({ status: 'success' });
 			},
@@ -61,7 +57,7 @@ router.get('/session', (req, res) => {
 	res.header('Access-Control-Allow-Credentials', true);
 
 		if(req.cookies.session) {
-		config.firebase.admin.auth().verifySessionCookie(req.cookies.session, true)
+		authHelper.verifySessionCookie(req.cookies.session, true)
 		.then(async (decodedClaims) => {
 			const uid = decodedClaims.uid;
 
@@ -70,7 +66,7 @@ router.get('/session', (req, res) => {
 			res.json(response);
 		}).catch((error) => {
 			logger.error('Session verification error:', error);
-			res.clearCookie('session');
+			res.clearCookie('session', authHelper.getSessionCookieOptions());
 			res.status(401).json({ error: 'Session invalid, please login again' });
 		});
 	}else {
@@ -79,7 +75,7 @@ router.get('/session', (req, res) => {
 })
 
 router.delete('/session', (req, res) => {
-	res.clearCookie('session');
+	res.clearCookie('session', authHelper.getSessionCookieOptions());
 	res.json({ success: 'Successfully deleted session' });
 })
 

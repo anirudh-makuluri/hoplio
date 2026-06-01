@@ -57,8 +57,7 @@ export default function MenuBar() {
 			const newData = {
 				name: newUserName
 			}
-			socket.emit('update_user_data', { uid: user.uid, newData }, (response: any) => {
-				console.log(response);
+			socket.emit('update_user_data', { newData }, (response: any) => {
 				if (response.success) {
 					updateUser(newData);
 					toast({
@@ -112,7 +111,7 @@ export default function MenuBar() {
 				photo_url: downloadUrl
 			}
 
-			socket.emit('update_user_data', { uid: user.uid, newData }, (response: any) => {
+			socket.emit('update_user_data', { newData }, (response: any) => {
 				if (response.success) {
 					updateUser(newData);
 					toast({

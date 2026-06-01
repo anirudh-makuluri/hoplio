@@ -4,38 +4,24 @@ const utils = require('../utils');
 const vectorEmbedder = require('../helpers/vector-embedder');
 const aiHelper = require('../helpers/ai-helper');
 const logger = require('../logger');
+const authHelper = require('../helpers/auth-helper');
 
 const router = new Router();
 const MAX_SEARCH_RESULTS = 5;
 
 /**
- * Middleware: verify session cookie and set req.uid
- */
-async function requireSession(req, res, next) {
-	const sessionCookie = req.cookies?.session || '';
-	if (!sessionCookie) {
-		return res.status(401).json({ error: 'No session found, please login' });
-	}
-	try {
-		const decoded = await config.firebase.admin.auth().verifySessionCookie(sessionCookie, true);
-		req.uid = decoded.uid;
-		next();
-	} catch (err) {
-		res.clearCookie('session');
-		return res.status(401).json({ error: 'Session invalid, please login again' });
-	}
-}
-
-/**
  * GET /api/search?roomId=xxx&query=yyy
  * Semantic search within a room's messages. Returns messages sorted by cosine similarity.
  */
-router.get('/search', requireSession, async (req, res) => {
+router.get('/search', authHelper.requireSession, async (req, res) => {
 	try {
 		const roomId = req.query.roomId;
 		const query = (req.query.query || '').trim();
 		if (!roomId) {
 			return res.status(400).json({ error: 'roomId is required' });
+		}
+		if (!utils.isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
 		}
 		if (!query) {
 			return res.status(400).json({ error: 'query is required' });
@@ -103,11 +89,14 @@ router.get('/search', requireSession, async (req, res) => {
  * GET /api/summary/:roomId
  * Generate AI summary of conversation in a room, excluding private/AI-blind messages.
  */
-router.get('/summary/:roomId', requireSession, async (req, res) => {
+router.get('/summary/:roomId', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
 		if (!roomId) {
 			return res.status(400).json({ error: 'roomId is required' });
+		}
+		if (!utils.isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
 		}
 
 		const roomRef = config.firebase.db.collection('rooms').doc(roomId);

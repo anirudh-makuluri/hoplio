@@ -57,6 +57,11 @@ export default function AIFeatures({ input, setInput, onAISend, lastMessage }: A
 		}, (response: TAISmartRepliesResponse) => {
 			if (response.success && response.replies) {
 				setSmartReplies(response.replies)
+			} else if (response.error) {
+				toast({
+					title: 'Unable to generate smart replies',
+					description: response.error
+				})
 			}
 		})
 	}
@@ -80,7 +85,12 @@ export default function AIFeatures({ input, setInput, onAISend, lastMessage }: A
 			if (response.success && response.summary) {
 				setSummary(response.summary)
 			} else {
-				setSummary('Failed to generate summary: ' + (response.error || 'Unknown error'))
+				const errorMessage = response.error || 'Unknown error'
+				setSummary('Failed to generate summary: ' + errorMessage)
+				toast({
+					title: 'Unable to summarize conversation',
+					description: errorMessage
+				})
 			}
 		})
 	}

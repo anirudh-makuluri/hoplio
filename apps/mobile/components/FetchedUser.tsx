@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { Avatar, Button, Snackbar, Text } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { TUser } from '~/lib/types';
+import { getErrorMessage } from '~/lib/utils';
 import { useAppSelector } from '~/redux/store';
 import { useTheme } from '~/lib/themeContext';
 
@@ -22,9 +23,9 @@ export default function FetchedUser({
 		if (!user || !socket) return;
 		socket.emit(
 			'send_friend_request_client_to_server',
-			{ senderUid: user.uid, receiverUid: fetchedUser.uid },
+			{ receiverUid: fetchedUser.uid },
 			(res: any) => {
-				setSnackbarMsg(JSON.stringify(res));
+				setSnackbarMsg(res.success || getErrorMessage(res?.error, 'Unable to send friend request'));
 				closeModal();
 			}
 		);

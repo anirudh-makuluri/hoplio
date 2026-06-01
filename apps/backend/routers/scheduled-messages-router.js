@@ -2,38 +2,25 @@ const express = require('express');
 const router = express.Router();
 const dbHelper = require('../helpers/db-helper');
 const logger = require('../logger');
-
-// Middleware to verify authentication
-const verifyAuth = async (req, res, next) => {
-	try {
-		const sessionCookie = req.cookies.session || '';
-		const admin = require('firebase-admin');
-		
-		const decodedClaims = await admin.auth().verifySessionCookie(sessionCookie, false);
-		if (!decodedClaims) {
-			return res.status(401).json({ error: 'Unauthorized' });
-		}
-		
-		req.user = decodedClaims;
-		next();
-	} catch (error) {
-		logger.error('Auth verification error:', error);
-		res.status(401).json({ error: 'Unauthorized' });
-	}
-};
+const config = require('../config');
+const authHelper = require('../helpers/auth-helper');
+const utils = require('../utils');
 
 // Create a scheduled message
-router.post('/schedule', verifyAuth, async (req, res) => {
+router.post('/schedule', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId, message, messageType, fileName, scheduledTime, recurring, recurringPattern, timezone } = req.body;
-		const userUid = req.user.uid;
+		const userUid = req.uid;
 
 		if (!roomId || !message || !scheduledTime) {
 			return res.status(400).json({ error: 'Required fields: roomId, message, scheduledTime' });
 		}
+		if (!utils.isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
+		}
 
 		// Verify user is authorized to schedule messages in this room
-		const roomRef = require('firebase-admin').firestore().collection('rooms').doc(roomId);
+		const roomRef = config.firebase.db.collection('rooms').doc(roomId);
 		const roomSnap = await roomRef.get();
 		if (!roomSnap.exists) {
 			return res.status(404).json({ error: 'Room not found' });
@@ -70,13 +57,16 @@ router.post('/schedule', verifyAuth, async (req, res) => {
 });
 
 // Get scheduled messages for a user
-router.get('/user/:userUid', verifyAuth, async (req, res) => {
+router.get('/user/:userUid', authHelper.requireSession, async (req, res) => {
 	try {
 		const { userUid } = req.params;
 		const { roomId } = req.query;
+		if (roomId && !utils.isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
+		}
 
 		// Verify user can only access their own scheduled messages
-		if (req.user.uid !== userUid) {
+		if (req.uid !== userUid) {
 			return res.status(403).json({ error: 'Unauthorized to access these scheduled messages' });
 		}
 
@@ -89,14 +79,17 @@ router.get('/user/:userUid', verifyAuth, async (req, res) => {
 });
 
 // Update a scheduled message
-router.put('/:scheduledMessageId', verifyAuth, async (req, res) => {
+router.put('/:scheduledMessageId', authHelper.requireSession, async (req, res) => {
 	try {
 		const { scheduledMessageId } = req.params;
 		const updates = req.body;
-		const userUid = req.user.uid;
+		const userUid = req.uid;
+		if (!utils.isValidEntityId(scheduledMessageId)) {
+			return res.status(400).json({ error: 'Invalid scheduledMessageId' });
+		}
 
 		// Verify ownership
-		const scheduledMessageRef = require('firebase-admin').firestore().collection('scheduled_messages').doc(scheduledMessageId);
+		const scheduledMessageRef = config.firebase.db.collection('scheduled_messages').doc(scheduledMessageId);
 		const scheduledMessageSnap = await scheduledMessageRef.get();
 		if (!scheduledMessageSnap.exists) {
 			return res.status(404).json({ error: 'Scheduled message not found' });
@@ -116,10 +109,13 @@ router.put('/:scheduledMessageId', verifyAuth, async (req, res) => {
 });
 
 // Delete a scheduled message
-router.delete('/:scheduledMessageId', verifyAuth, async (req, res) => {
+router.delete('/:scheduledMessageId', authHelper.requireSession, async (req, res) => {
 	try {
 		const { scheduledMessageId } = req.params;
-		const userUid = req.user.uid;
+		const userUid = req.uid;
+		if (!utils.isValidEntityId(scheduledMessageId)) {
+			return res.status(400).json({ error: 'Invalid scheduledMessageId' });
+		}
 
 		const response = await dbHelper.deleteScheduledMessage(scheduledMessageId, userUid);
 		res.json(response);
@@ -130,13 +126,16 @@ router.delete('/:scheduledMessageId', verifyAuth, async (req, res) => {
 });
 
 // Get scheduled messages for a specific room
-router.get('/room/:roomId', verifyAuth, async (req, res) => {
+router.get('/room/:roomId', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
-		const userUid = req.user.uid;
+		const userUid = req.uid;
+		if (!utils.isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
+		}
 
 		// Verify user is a member of the room
-		const roomRef = require('firebase-admin').firestore().collection('rooms').doc(roomId);
+		const roomRef = config.firebase.db.collection('rooms').doc(roomId);
 		const roomSnap = await roomRef.get();
 		if (!roomSnap.exists) {
 			return res.status(404).json({ error: 'Room not found' });

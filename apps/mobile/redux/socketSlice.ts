@@ -172,7 +172,8 @@ export const addReaction = (params: {
 	const { socket } = getState().socket;
 	if (!socket) return;
 
-	socket.emit('chat_reaction_client_to_server', params, (response: any) => {
+	const { reactionId, id, chatDocId, roomId } = params;
+	socket.emit('chat_reaction_client_to_server', { reactionId, id, chatDocId, roomId }, (response: any) => {
 		if (response.success) {
 			console.log('Reaction added/removed successfully:', response);
 		} else {
@@ -288,7 +289,7 @@ export const getScheduledMessages = (userUid: string, roomId?: string): AppThunk
 	const { socket } = getState().socket;
 	if (!socket) return;
 
-	socket.emit('get_scheduled_messages', { userUid, roomId }, (response: ScheduledMessagesListResponse) => {
+	socket.emit('get_scheduled_messages', { roomId }, (response: ScheduledMessagesListResponse) => {
 		if (response.success) {
 			console.log('Scheduled messages retrieved:', response);
 			// Dispatch action to update Redux state with scheduled messages
@@ -305,7 +306,7 @@ export const updateScheduledMessage = (scheduledMessageId: string, userUid: stri
 	const { socket } = getState().socket;
 	if (!socket) return;
 
-	socket.emit('update_scheduled_message', { scheduledMessageId, userUid, updates }, (response: ScheduledMessageResponse) => {
+	socket.emit('update_scheduled_message', { scheduledMessageId, updates }, (response: ScheduledMessageResponse) => {
 		if (response.success) {
 			console.log('Scheduled message updated:', response);
 			// Dispatch action to update Redux state with updated message
@@ -322,7 +323,7 @@ export const deleteScheduledMessage = (scheduledMessageId: string, userUid: stri
 	const { socket } = getState().socket;
 	if (!socket) return;
 
-	socket.emit('delete_scheduled_message', { scheduledMessageId, userUid }, (response: { success: boolean; error?: string }) => {
+	socket.emit('delete_scheduled_message', { scheduledMessageId }, (response: { success: boolean; error?: string }) => {
 		if (response.success) {
 			console.log('Scheduled message deleted:', response);
 			// Dispatch action to remove message from Redux state

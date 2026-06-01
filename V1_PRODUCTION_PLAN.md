@@ -100,43 +100,47 @@ Goal: freeze V1 and make all future work measured against one shared checklist.
 
 Goal: stop trusting client payloads and make server-side authorization real.
 
+Status: complete on June 1, 2026, with rate limiting intentionally deferred by product decision.
+
 #### Backend
 
-- [ ] Replace client-trusted `uid`/actor fields in socket mutations with authenticated socket identity
-- [ ] Enforce membership checks on:
-  - [ ] message send
-  - [ ] message edit
-  - [ ] message delete
-  - [ ] message save
-  - [ ] reactions
-  - [ ] scheduled messages
-- [ ] Enforce ownership checks on:
-  - [ ] profile updates
-  - [ ] scheduled message updates/deletes
-- [ ] Enforce group admin/owner checks on:
-  - [ ] add member
-  - [ ] remove member
-  - [ ] update group
-  - [ ] delete group
-- [ ] Validate all room IDs, message IDs, device IDs, and upload paths
+- [x] Replace client-trusted `uid`/actor fields in socket mutations with authenticated socket identity
+- [x] Enforce membership checks on:
+  - [x] message send
+  - [x] message edit
+  - [x] message delete
+  - [x] message save
+  - [x] reactions
+  - [x] scheduled messages
+- [x] Enforce ownership checks on:
+  - [x] profile updates
+  - [x] scheduled message updates/deletes
+- [x] Enforce group admin/owner checks on:
+  - [x] add member
+  - [x] remove member
+  - [x] update group
+  - [x] delete group
+- [x] Validate all room IDs, message IDs, device IDs, and upload paths
 - [ ] Add rate limiting for auth, search, AI, uploads, and friend actions
-- [ ] Revisit session cookie production config
+- [x] Revisit session cookie production config
 
 #### Web
 
-- [ ] Verify all web mutations can work without client-trusted identity fields
-- [ ] Remove any UI assumptions that bypass permission errors
+- [x] Verify all web mutations can work without client-trusted identity fields
+- [x] Remove any UI assumptions that bypass permission errors
 
 #### Mobile
 
-- [ ] Verify all mobile mutations can work without client-trusted identity fields
-- [ ] Add proper failure UX for authorization errors
+- [x] Verify all mobile mutations can work without client-trusted identity fields
+- [x] Add proper failure UX for authorization errors
 
 #### Exit Criteria
 
 - All writes are authorized from session/socket identity
 - Group management cannot be spoofed by payload edits
 - Session/cookie configuration is production-safe
+
+Rate limiting is intentionally deferred by current product decision and is not part of the Milestone 1 completion call for this branch.
 
 ### Milestone 2 - Backend Statelessness and Realtime Reliability
 

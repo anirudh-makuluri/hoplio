@@ -29,12 +29,11 @@ export default function FetchedUser({ fetchedUser, closeDialog }: { fetchedUser:
 			return;
 		}
 
-		socket.emit('send_friend_request_client_to_server', { senderUid: user.uid, receiverUid: fetchedUser.uid }, (res: any) => {
-			console.log(res);
+		socket.emit('send_friend_request_client_to_server', { receiverUid: fetchedUser.uid }, (res: any) => {
 			if (res.success) {
 				toast({
 					title: "Success",
-					description: res.sucsess
+					description: res.success
 				})
 			} else {
 				toast({

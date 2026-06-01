@@ -47,6 +47,27 @@ module.exports = class Room {
 		return { success: 'Successfully fetch chat doc', chat_history: reqChatDocSnap.data().chat_history };
 	}
 
+	async getChatMessage(chatDocId, id) {
+		const chatDocRef = this.roomRef.collection('chat_history').doc(chatDocId);
+		const chatDocSnap = await chatDocRef.get();
+		if (!chatDocSnap.exists) {
+			throw new Error("Chat document not found");
+		}
+
+		const chatHistory = chatDocSnap.data().chat_history || [];
+		const reqIdx = chatHistory.findIndex(msg => msg.id == id);
+		if (reqIdx === -1) {
+			throw new Error("Required message not found");
+		}
+
+		return {
+			chatDocRef,
+			chatHistory,
+			message: chatHistory[reqIdx],
+			messageIndex: reqIdx
+		};
+	}
+
 	async newChatEvent(chatEvent) {
 		chatEvent.chatDocId = this.currentChatDocRef?.id;
 		chatEvent.time = new Date();
@@ -110,16 +131,13 @@ module.exports = class Room {
 		return { success: `Successfully sent chat msg to roomId: ${this.roomId}` };
 	}
 
-	async deleteChatMessage({ id, chatDocId }){
-		const chatDocRef = this.roomRef.collection('chat_history').doc(chatDocId);
-		const chatDocSnap = await chatDocRef.get();
-		const chatHistory = chatDocSnap.data().chat_history;
+	async deleteChatMessage({ id, chatDocId, actorUid }){
+		const { chatDocRef, chatHistory, message, messageIndex } = await this.getChatMessage(chatDocId, id);
+		if (message.userUid !== actorUid) {
+			throw new Error("You can only delete your own messages");
+		}
 
-		const reqIdx = chatHistory.findIndex(msg => msg.id == id)
-
-		if(reqIdx == -1) throw new Error("Required message not found");
-
-		chatHistory.splice(reqIdx, 1);
+		chatHistory.splice(messageIndex, 1);
 
 		await chatDocRef.update({
 			chat_history: chatHistory
@@ -130,17 +148,14 @@ module.exports = class Room {
 		return { success: `Successfully deleted chat in roomId: ${this.roomId}` };
 	}
 
-	async editChatMessage({ id, chatDocId, newText }) {
-		const chatDocRef = this.roomRef.collection('chat_history').doc(chatDocId);
-		const chatDocSnap = await chatDocRef.get();
-		const chatHistory = chatDocSnap.data().chat_history;
+	async editChatMessage({ id, chatDocId, newText, actorUid }) {
+		const { chatDocRef, chatHistory, message, messageIndex } = await this.getChatMessage(chatDocId, id);
+		if (message.userUid !== actorUid) {
+			throw new Error("You can only edit your own messages");
+		}
 
-		const reqIdx = chatHistory.findIndex(msg => msg.id == id)
-
-		if(reqIdx == -1) throw new Error("Required message not found");
-
-		chatHistory[reqIdx].chatInfo = newText
-		chatHistory[reqIdx].isMsgEdited = true
+		chatHistory[messageIndex].chatInfo = newText
+		chatHistory[messageIndex].isMsgEdited = true
 
 		await chatDocRef.update({
 			chat_history: chatHistory
@@ -153,20 +168,14 @@ module.exports = class Room {
 	}
 
 	async saveChatMessage({ id, chatDocId }){
-		const chatDocRef = this.roomRef.collection('chat_history').doc(chatDocId);
-		const chatDocSnap = await chatDocRef.get();
-		const chatHistory = chatDocSnap.data().chat_history;
+		const { chatDocRef, chatHistory, messageIndex } = await this.getChatMessage(chatDocId, id);
 
 		const roomSnap = await this.roomRef.get();
 
-		const reqIdx = chatHistory.findIndex(msg => msg.id == id)
-
-		if(reqIdx == -1) throw new Error("Required message not found");
-
-		const isMsgSaved = chatHistory[reqIdx].isMsgSaved || false;
+		const isMsgSaved = chatHistory[messageIndex].isMsgSaved || false;
 
 		if(isMsgSaved) {
-			chatHistory[reqIdx].isMsgSaved = false;
+			chatHistory[messageIndex].isMsgSaved = false;
 
 			const savedMessages = roomSnap.data().saved_messages || [];
 
@@ -180,11 +189,11 @@ module.exports = class Room {
 				})
 			}
 		} else {
-			chatHistory[reqIdx].isMsgSaved = true;
+			chatHistory[messageIndex].isMsgSaved = true;
 
 			await this.roomRef.update({
 				saved_messages: config.firebase.admin.firestore.FieldValue.arrayUnion({
-					...chatHistory[reqIdx]
+					...chatHistory[messageIndex]
 				})
 			})
 

@@ -1,6 +1,7 @@
 const express = require('express');
 const config = require('../config');
 const logger = require('../logger');
+const authHelper = require('../helpers/auth-helper');
 
 const router = express.Router();
 
@@ -76,20 +77,8 @@ function isValidDeviceId(value) {
 	return /^[A-Za-z0-9._:-]+$/.test(trimmed);
 }
 
-async function requireSession(req, res, next) {
-	const sessionCookie = req.cookies?.session || '';
-	if (!sessionCookie) {
-		return res.status(401).json({ error: 'No session found, please login' });
-	}
-	try {
-		const decoded = await config.firebase.admin.auth().verifySessionCookie(sessionCookie, true);
-		req.uid = decoded.uid;
-		req.user = decoded;
-		return next();
-	} catch (error) {
-		res.clearCookie('session');
-		return res.status(401).json({ error: 'Session invalid, please login again' });
-	}
+function isValidEntityId(value) {
+	return require('../utils').isValidEntityId(value);
 }
 
 async function getRoomInfo(roomId) {
@@ -112,7 +101,7 @@ function isRoomAdmin(roomData, userId) {
 	return Array.isArray(admins) && admins.includes(userId);
 }
 
-router.post('/auth/setup-keys', requireSession, async (req, res) => {
+router.post('/auth/setup-keys', authHelper.requireSession, async (req, res) => {
 	try {
 		const { userId, identityPublicKey, deviceId, deviceName } = req.body || {};
 		if (!userId || typeof userId !== 'string') {
@@ -160,12 +149,13 @@ router.post('/auth/setup-keys', requireSession, async (req, res) => {
 	}
 });
 
-router.post('/rooms/:roomId/members/add-key', requireSession, async (req, res) => {
+router.post('/rooms/:roomId/members/add-key', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
 		const { userId, roomPublicKey, deviceId, deviceName } = req.body || {};
 
 		if (!roomId) return res.status(400).json({ error: 'roomId is required' });
+		if (!isValidEntityId(roomId)) return res.status(400).json({ error: 'Invalid roomId' });
 		if (!userId || typeof userId !== 'string') {
 			return res.status(400).json({ error: 'userId is required' });
 		}
@@ -226,10 +216,11 @@ router.post('/rooms/:roomId/members/add-key', requireSession, async (req, res) =
 	}
 });
 
-router.get('/rooms/:roomId/members/public-keys', requireSession, async (req, res) => {
+router.get('/rooms/:roomId/members/public-keys', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
 		if (!roomId) return res.status(400).json({ error: 'roomId is required' });
+		if (!isValidEntityId(roomId)) return res.status(400).json({ error: 'Invalid roomId' });
 
 		const roomInfo = await getRoomInfo(roomId);
 		if (!roomInfo) return res.status(404).json({ error: 'Room not found' });
@@ -353,12 +344,15 @@ router.get('/users/:userId/identity-key', async (req, res) => {
 	}
 });
 
-router.delete('/rooms/:roomId/members/:userId/key', requireSession, async (req, res) => {
+router.delete('/rooms/:roomId/members/:userId/key', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId, userId } = req.params;
 		const deviceId = req.query?.deviceId;
 		if (!roomId || !userId) {
 			return res.status(400).json({ error: 'roomId and userId are required' });
+		}
+		if (!isValidEntityId(roomId)) {
+			return res.status(400).json({ error: 'Invalid roomId' });
 		}
 		if (deviceId && !isValidDeviceId(deviceId)) {
 			return res.status(400).json({ error: 'Invalid deviceId' });
@@ -407,7 +401,7 @@ router.delete('/rooms/:roomId/members/:userId/key', requireSession, async (req, 
 	}
 });
 
-router.post('/users/:userId/rotate-keys', requireSession, async (req, res) => {
+router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req, res) => {
 	try {
 		const { userId } = req.params;
 		const { newIdentityPublicKey, roomKeys, deviceId, deviceName } = req.body || {};
@@ -498,12 +492,13 @@ router.post('/users/:userId/rotate-keys', requireSession, async (req, res) => {
 	}
 });
 
-router.post('/rooms/:roomId/messages', requireSession, async (req, res) => {
+router.post('/rooms/:roomId/messages', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
 		const { recipients, senderId, senderKeys } = req.body || {};
 
 		if (!roomId) return res.status(400).json({ error: 'roomId is required' });
+		if (!isValidEntityId(roomId)) return res.status(400).json({ error: 'Invalid roomId' });
 		if (!senderId || typeof senderId !== 'string') {
 			return res.status(400).json({ error: 'senderId is required' });
 		}

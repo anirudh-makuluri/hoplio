@@ -4,8 +4,37 @@ const dbHelper = require('../helpers/db-helper');
 const { v4: UUID } = require("uuid");
 const logger = require('../logger');
 const utils = require('../utils');
+const authHelper = require('../helpers/auth-helper');
 
 const router = new Router();
+
+router.use('/users', authHelper.requireSession);
+
+function ensureActorMatchesParamUser(req, res) {
+	if (req.uid !== req.params.uid) {
+		res.status(403).json({ error: 'Forbidden' });
+		return false;
+	}
+
+	return true;
+}
+
+function isValidStoragePath(storagePath) {
+	if (typeof storagePath !== 'string') return false;
+	const trimmed = storagePath.trim();
+	if (trimmed.length === 0 || trimmed.length > 256) return false;
+	if (trimmed.includes('..')) return false;
+	return /^[A-Za-z0-9/_\-.]+$/.test(trimmed);
+}
+
+function ensureValidEntityId(res, value, label) {
+	if (!utils.isValidEntityId(value)) {
+		res.status(400).json({ error: `Invalid ${label}` });
+		return false;
+	}
+
+	return true;
+}
 
 router.get('/users/search-user', async (req, res) => {
 	const searchUser = req.query.searchuser;
@@ -32,6 +61,8 @@ router.get('/users/search-user', async (req, res) => {
 });
 
 router.put('/users/:uid/friend-request', async (req, res) => {
+	if (!ensureActorMatchesParamUser(req, res)) return;
+
 	const senderUid = req.params.uid;
 	const receiverUid = req.query.receiveruid;
 
@@ -47,6 +78,8 @@ router.put('/users/:uid/friend-request', async (req, res) => {
 })
 
 router.post("/users/:uid/respond-request", async (req, res) => {
+	if (!ensureActorMatchesParamUser(req, res)) return;
+
 	const uid = req.params.uid;
 	const isAccepted = req.body.isAccepted;
 	const requestUid = req.body.uid;
@@ -63,6 +96,8 @@ router.post("/users/:uid/respond-request", async (req, res) => {
 })
 
 router.post("/users/:uid/files", async function (req, res) {
+	if (!ensureActorMatchesParamUser(req, res)) return;
+
 	if (!req.files) {
 		return res.status(400).json({ error: `Could not decode any files` });
 	}
@@ -77,6 +112,9 @@ router.post("/users/:uid/files", async function (req, res) {
 
 	const file = req.files.file;
 	const storagePath = req.query.storagePath;
+	if (!isValidStoragePath(storagePath)) {
+		return res.status(400).json({ error: 'Invalid storagePath' });
+	}
 
 	const fileStorageRef = config.firebase.storageBucket.file(storagePath);
 	const uploadedFileName = fileStorageRef.name;
@@ -107,6 +145,8 @@ router.post("/users/:uid/files", async function (req, res) {
 	// AI Assistant Routes
 router.post("/users/:uid/ai-assistant/room", async function (req, res) {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const userId = req.params.uid;
 		
 		if (!userId) {
@@ -171,6 +211,8 @@ router.post("/users/:uid/ai-assistant/room", async function (req, res) {
 // Create a new group
 router.post('/users/:uid/groups', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const creatorUid = req.params.uid;
 		let { name, photoUrl, memberUids } = req.body || {};
 		
@@ -191,8 +233,11 @@ router.post('/users/:uid/groups', async (req, res) => {
 // Add group members
 router.post('/users/:uid/groups/:roomId/members', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const actorUid = req.params.uid;
 		const roomId = req.params.roomId;
+		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		const { memberUids } = req.body || {};
 		const response = await dbHelper.addGroupMembers(roomId, actorUid, memberUids || []);
 		res.json(response);
@@ -206,9 +251,12 @@ router.post('/users/:uid/groups/:roomId/members', async (req, res) => {
 // Remove a member
 router.delete('/users/:uid/groups/:roomId/members/:memberUid', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const actorUid = req.params.uid;
 		const roomId = req.params.roomId;
 		const memberUid = req.params.memberUid;
+		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		const response = await dbHelper.removeGroupMember(roomId, actorUid, memberUid);
 		res.json(response);
 	} catch (error) {
@@ -221,8 +269,11 @@ router.delete('/users/:uid/groups/:roomId/members/:memberUid', async (req, res) 
 // Update group info (name/photo/ai settings)
 router.patch('/users/:uid/groups/:roomId', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const actorUid = req.params.uid;
 		const roomId = req.params.roomId;
+		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		let { name, photoUrl, aiDisabled } = req.body || {};
 		
 		// Sanitize user inputs
@@ -245,8 +296,11 @@ router.patch('/users/:uid/groups/:roomId', async (req, res) => {
 // Delete group
 router.delete('/users/:uid/groups/:roomId', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const actorUid = req.params.uid;
 		const roomId = req.params.roomId;
+		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		const response = await dbHelper.deleteGroup(roomId, actorUid);
 		res.json(response);
 	} catch (error) {
@@ -259,8 +313,11 @@ router.delete('/users/:uid/groups/:roomId', async (req, res) => {
 // Toggle AI for any room (enable/disable)
 router.patch('/users/:uid/rooms/:roomId/ai', async (req, res) => {
 	try {
+		if (!ensureActorMatchesParamUser(req, res)) return;
+
 		const actorUid = req.params.uid;
 		const roomId = req.params.roomId;
+		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		const { aiDisabled } = req.body || {};
 
 		// Verify user is a member of the room

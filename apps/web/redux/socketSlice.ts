@@ -90,7 +90,7 @@ export const scheduleMessage = (scheduledMessage: TScheduleMessageRequest): AppT
 export const getScheduledMessages = (userUid: string, roomId?: string): AppThunk => (dispatch, getState) => {
 	const { socket } = getState().socket;
 	if (socket) {
-		socket.emit('get_scheduled_messages', { userUid, roomId }, (response: any) => {
+		socket.emit('get_scheduled_messages', { roomId }, (response: any) => {
 			console.log('Get scheduled messages response:', response);
 			if (response.success && response.scheduledMessages) {
 				// Convert string dates to Date objects
@@ -109,7 +109,7 @@ export const getScheduledMessages = (userUid: string, roomId?: string): AppThunk
 export const updateScheduledMessage = (scheduledMessageId: string, updates: TUpdateScheduledMessageRequest, userUid: string): AppThunk => (dispatch, getState) => {
 	const { socket } = getState().socket;
 	if (socket) {
-		socket.emit('update_scheduled_message', { scheduledMessageId, updates, userUid }, (response: any) => {
+		socket.emit('update_scheduled_message', { scheduledMessageId, updates }, (response: any) => {
 			console.log('Update scheduled message response:', response);
 			if (response.success) {
 				// Convert string dates to Date objects for Redux state
@@ -126,7 +126,7 @@ export const updateScheduledMessage = (scheduledMessageId: string, updates: TUpd
 export const deleteScheduledMessage = (scheduledMessageId: string, userUid: string): AppThunk => (dispatch, getState) => {
 	const { socket } = getState().socket;
 	if (socket) {
-		socket.emit('delete_scheduled_message', { scheduledMessageId, userUid }, (response: any) => {
+		socket.emit('delete_scheduled_message', { scheduledMessageId }, (response: any) => {
 			console.log('Delete scheduled message response:', response);
 			if (response.success) {
 				dispatch(removeScheduledMessage(scheduledMessageId));

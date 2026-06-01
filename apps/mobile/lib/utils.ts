@@ -7,6 +7,25 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export const getErrorMessage = (error: unknown, fallback = 'Something went wrong'): string => {
+	if (error instanceof Error && error.message) {
+		return error.message;
+	}
+
+	if (typeof error === 'string' && error.trim().length > 0) {
+		return error;
+	}
+
+	if (error && typeof error === 'object') {
+		const candidate = (error as any).error || (error as any).message;
+		if (typeof candidate === 'string' && candidate.trim().length > 0) {
+			return candidate;
+		}
+	}
+
+	return fallback;
+};
+
 export const customFetch = async ({ pathName, method = 'GET', body }: {
 	pathName: string,
 	method?: 'GET' | 'POST' | 'PATCH' | 'PUT' | 'DELETE',
@@ -269,7 +288,6 @@ export const updateUserName = (socket: any, userUid: string, newName: string): P
 		}
 
 		socket.emit('update_user_data', { 
-			uid: userUid, 
 			newData: { name: newName } 
 		}, (response: any) => {
 			if (response.success) {
@@ -289,7 +307,6 @@ export const updateUserProfilePicture = (socket: any, userUid: string, photoUrl:
 		}
 
 		socket.emit('update_user_data', { 
-			uid: userUid, 
 			newData: { photo_url: photoUrl } 
 		}, (response: any) => {
 			if (response.success) {

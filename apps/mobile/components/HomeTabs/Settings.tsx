@@ -4,7 +4,7 @@ import { Avatar, Button, Text, useTheme, Card, IconButton, TextInput, ActivityIn
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useUser } from '~/app/providers'
 import { useAppSelector } from '~/redux/store';
-import { updateUserName, updateUserProfilePicture, uploadProfilePicture } from '~/lib/utils';
+import { getErrorMessage, updateUserName, updateUserProfilePicture, uploadProfilePicture } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import * as ImagePicker from 'expo-image-picker';
 export default function Settings() {
@@ -26,7 +26,7 @@ export default function Settings() {
 			setIsEditingName(false);
 			Alert.alert('Success', 'Name updated successfully');
 		} catch (error) {
-			Alert.alert('Error', 'Failed to update name');
+			Alert.alert('Error', getErrorMessage(error, 'Failed to update name'));
 		}
 	};
 
@@ -60,7 +60,7 @@ export default function Settings() {
 				Alert.alert('Success', 'Profile picture updated successfully');
 			}
 		} catch (error) {
-			Alert.alert('Error', 'Failed to update profile picture');
+			Alert.alert('Error', getErrorMessage(error, 'Failed to update profile picture'));
 		} finally {
 			setIsUploading(false);
 		}

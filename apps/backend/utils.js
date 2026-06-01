@@ -116,5 +116,18 @@ module.exports = {
 		}
 		
 		return { isValid: true, sanitized };
+	},
+
+	isValidEntityId: function(value, options = {}) {
+		const {
+			minLength = 1,
+			maxLength = 128,
+			pattern = /^[A-Za-z0-9._:-]+$/
+		} = options;
+
+		if (typeof value !== 'string') return false;
+		const trimmed = value.trim();
+		if (trimmed.length < minLength || trimmed.length > maxLength) return false;
+		return pattern.test(trimmed);
 	}
 }
