@@ -2,6 +2,10 @@
 
 This directory is the new monorepo shell for Chatify.
 
+## Planning
+
+- V1 production execution plan: [V1_PRODUCTION_PLAN.md](/C:/Users/aniru/OneDrive/Desktop/own/chatify/chatify/V1_PRODUCTION_PLAN.md)
+
 ## Structure
 
 - `apps/backend`
