@@ -216,7 +216,7 @@ export default function ScheduledMessagesList({ roomId, userUid }: ScheduledMess
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
 			<DialogTrigger asChild>
-				<Button variant="outline" size="sm" className="flex items-center gap-2">
+				<Button variant="outline" size="sm" className={filteredMessages.length === 0 ? "hidden items-center gap-2" : "flex items-center gap-2"}>
 					<Clock className="h-4 w-4" />
 					Scheduled Messages
 				</Button>

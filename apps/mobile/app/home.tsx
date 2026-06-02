@@ -27,6 +27,11 @@ import GroupChat from '~/components/GroupChat';
 import BottomNavBar from '~/components/BottomNavBar';
 import { useToast } from '~/components/Toast';
 import GlassSurface from '~/components/GlassSurface';
+import {
+	useE2EEInitialization,
+	useEnsureE2EEKeys,
+	useE2EESyncingKeys,
+} from '~/lib/hooks/useE2EE';
 
 // Note: HamburgerMenu component has been replaced with BottomNavBar
 
@@ -40,8 +45,12 @@ export default function Page() {
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
 	const dispatch = useAppDispatch();
 	const reduxDispatch = useDispatch();
+	const e2eeInitialized = useE2EEInitialization();
+	const ensureE2EEKeys = useEnsureE2EEKeys();
+	const isSyncingE2EEKeys = useE2EESyncingKeys();
 	const [currentTab, setCurrentTab] = useState<TabType>('chats');
 	const [showGroupModal, setShowGroupModal] = useState(false);
+	const [roomsBootstrapped, setRoomsBootstrapped] = useState(false);
 
 	const renderCurrentView = () => {
 		switch (currentTab) {
@@ -80,36 +89,70 @@ export default function Page() {
 	);
 
 	useEffect(() => {
-		if (!isLoading && !user) {
-			router.replace('/auth');
-			return;
+		let cancelled = false;
+
+		const bootstrapRooms = async () => {
+			try {
+				if (!isLoading && !user) {
+					router.replace('/auth');
+					return;
+				}
+
+				if (!user || !e2eeInitialized) {
+					return;
+				}
+
+				dispatch(setOfflineMode(isOffline || false));
+
+				const roomIds: string[] = Array.isArray(user.rooms) ? user.rooms.map((room) => room.roomId) : [];
+				const e2eeRoomIds = roomIds.filter((roomId) => !roomId.startsWith('ai-assistant-'));
+
+				if (!isOffline) {
+					await ensureE2EEKeys(user.uid, e2eeRoomIds);
+
+					dispatch(
+						initAndJoinSocketRooms(roomIds, {
+							email: user.email,
+							name: user.name,
+							photo_url: user.photo_url,
+							uid: user.uid,
+						})
+					);
+
+					dispatch(syncPendingMessages());
+				}
+
+				if (Array.isArray(user.rooms)) {
+					user.rooms.forEach((roomData) => {
+						dispatch(joinChatRoom(roomData));
+					});
+				}
+
+				if (!cancelled) {
+					setRoomsBootstrapped(true);
+				}
+			} catch (error) {
+				console.error('Failed to bootstrap mobile rooms:', error);
+				if (!cancelled) {
+					showToast({ message: 'Unable to finish secure room setup.', type: 'error' });
+				}
+			}
+		};
+
+		if (!roomsBootstrapped) {
+			void bootstrapRooms();
 		}
 
-		if (!user) return;
+		return () => {
+			cancelled = true;
+		};
+	}, [user, isLoading, isOffline, e2eeInitialized, ensureE2EEKeys, roomsBootstrapped, dispatch, router]);
 
-		dispatch(setOfflineMode(isOffline || false));
-
-		if (!isOffline) {
-			const roomIds: string[] = Array.isArray(user.rooms) ? user.rooms.map((u) => u.roomId) : [];
-
-			dispatch(
-				initAndJoinSocketRooms(roomIds, {
-					email: user.email,
-					name: user.name,
-					photo_url: user.photo_url,
-					uid: user.uid,
-				})
-			);
-
-			dispatch(syncPendingMessages());
+	useEffect(() => {
+		if (!user) {
+			setRoomsBootstrapped(false);
 		}
-
-		if (Array.isArray(user.rooms)) {
-			user.rooms.forEach((roomData) => {
-				dispatch(joinChatRoom(roomData));
-			});
-		}
-	}, [user, isLoading, isOffline]);
+	}, [user]);
 
 	useEffect(() => {
 		if (!socket) return;
@@ -201,6 +244,22 @@ export default function Page() {
 			if (activeChatRoomId != '') return;
 		};
 	}, [socket]);
+
+	if (user && (!e2eeInitialized || !roomsBootstrapped || isSyncingE2EEKeys)) {
+		return (
+			<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+				<View style={[styles.comingSoonContainer, { backgroundColor: colors.background }]}>
+					<View style={[styles.comingSoonIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
+						<Icon source="shield-lock" size={64} color={colors.primary} />
+					</View>
+					<Text style={[styles.comingSoonTitle, { color: colors.text }]}>Securing your chats</Text>
+					<Text style={[styles.comingSoonMessage, { color: colors.textSecondary }]}>
+						Preparing device keys and loading your rooms.
+					</Text>
+				</View>
+			</SafeAreaView>
+		);
+	}
 
 	return (
 		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>

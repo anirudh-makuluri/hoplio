@@ -134,7 +134,7 @@ export default function Page() {
 			{(isLoadingScreenVisible || isAuthenticating) && <LoadingScreen/>}
 			<Card className="p-8 w-full max-w-[420px] shadow-xl border border-border/60">
 				<CardHeader className="flex flex-col justify-center items-center space-y-2">
-					<CardTitle className="text-3xl font-semibold tracking-tight">Chatify</CardTitle>
+					<CardTitle className="text-3xl font-semibold tracking-tight">Hoplio</CardTitle>
 					<CardDescription className="text-center">Sign {isSignIn ? 'in' : 'up'} to supercharge your conversations</CardDescription>
 				</CardHeader>
 				<CardContent className="space-y-4 flex flex-col items-center my-6">

@@ -120,7 +120,7 @@ export default function Home() {
 							textShadow: '0 0 40px rgba(217, 91%, 60%, 0.3)'
 						}}
 					>
-						Chatify
+						Hoplio
 					</h1>
 					
 					{/* Subtitle */}

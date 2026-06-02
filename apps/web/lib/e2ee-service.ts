@@ -8,7 +8,7 @@
 import * as crypto from './crypto';
 import * as deviceManager from './device-manager';
 import * as e2eeApi from './e2ee-api';
-import { RecipientEncryptedMessages, EncryptedRoomMessage } from './e2ee-types';
+import { RecipientEncryptedMessages, RoomMemberKeyBundle } from './e2ee-types';
 
 /**
  * E2EE Service - Main interface for E2EE operations
@@ -45,8 +45,9 @@ export class E2EEService {
 			const deviceId = deviceManager.getDeviceId();
 			const deviceName = deviceManager.getDeviceName();
 			const identityPublicKey = deviceManager.getIdentityPublicKey();
+			const signingPublicKey = deviceManager.getSigningPublicKey();
 
-			if (!deviceId || !identityPublicKey) {
+			if (!deviceId || !identityPublicKey || !signingPublicKey) {
 				throw new Error('Device not properly initialized');
 			}
 
@@ -64,6 +65,7 @@ export class E2EEService {
 				deviceId,
 				deviceName: deviceName || 'Web Device',
 				identityPublicKey: normalizedIdentityPublicKey,
+				signingPublicKey: crypto.normalizeBase64Key(signingPublicKey),
 			});
 
 			// 2. Register room keys for each room
@@ -85,12 +87,21 @@ export class E2EEService {
 				if (!isValidRoomKey) {
 					throw new Error(`Invalid base64 room public key for room ${roomId}: ${normalizedRoomPublicKey.substring(0, 50)}...`);
 				}
+				const signingKeyPair = deviceManager.getSigningKeyPair();
+				if (!signingKeyPair) {
+					throw new Error('Signing key pair not initialized');
+				}
+				const roomKeySignature = crypto.signMessage(
+					crypto.buildRoomKeySignaturePayload(roomId, userId, deviceId, normalizedRoomPublicKey),
+					signingKeyPair.privateKey
+				);
 
 				await e2eeApi.registerDeviceRoomKey(roomId, {
 					userId,
 					deviceId,
 					deviceName: deviceName || 'Web Device',
 					roomPublicKey: normalizedRoomPublicKey,
+					roomKeySignature,
 				});
 			}
 		} catch (error) {
@@ -168,6 +179,7 @@ export class E2EEService {
 	async rotateIdentityKeys(userId: string): Promise<void> {
 		try {
 			const newKeypair = deviceManager.rotateIdentityKeyPair();
+			const newSigningKeyPair = deviceManager.rotateSigningKeyPair();
 			const deviceId = deviceManager.getDeviceId();
 			const roomKeys = deviceManager.getAllRoomKeyPairs();
 
@@ -176,15 +188,22 @@ export class E2EEService {
 			}
 
 			const roomKeysMap: { [roomId: string]: string } = {};
+			const roomKeySignatures: { [roomId: string]: string } = {};
 			for (const [roomId, keypair] of Object.entries(roomKeys)) {
 				roomKeysMap[roomId] = keypair.publicKey;
+				roomKeySignatures[roomId] = crypto.signMessage(
+					crypto.buildRoomKeySignaturePayload(roomId, userId, deviceId, keypair.publicKey),
+					newSigningKeyPair.privateKey
+				);
 			}
 
 			await e2eeApi.rotateDeviceKeys(userId, {
 				deviceId,
 				deviceName: deviceManager.getDeviceName() || 'Web Device',
 				newIdentityPublicKey: newKeypair.publicKey,
+				newSigningPublicKey: newSigningKeyPair.publicKey,
 				roomKeys: roomKeysMap,
+				roomKeySignatures,
 			});
 		} catch (error) {
 			console.error('Key rotation failed:', error);
@@ -203,7 +222,39 @@ export class E2EEService {
 			if (!response.success) {
 				throw new Error('Failed to fetch member public keys');
 			}
-			return response.members;
+			const verifiedKeys: { [userId: string]: { [deviceId: string]: string } } = {};
+			for (const [userId, devices] of Object.entries(response.members as Record<string, Record<string, RoomMemberKeyBundle>>)) {
+				for (const [deviceId, deviceBundle] of Object.entries(devices)) {
+					const computedFingerprint = crypto.computeDeviceFingerprint(
+						deviceBundle.identityPublicKey,
+						deviceBundle.signingPublicKey
+					);
+					if (computedFingerprint !== deviceBundle.identityFingerprint) {
+						continue;
+					}
+					if (
+						!crypto.verifySignature(
+							crypto.buildRoomKeySignaturePayload(roomId, userId, deviceId, deviceBundle.roomPublicKey),
+							deviceBundle.roomKeySignature,
+							deviceBundle.signingPublicKey
+						)
+					) {
+						continue;
+					}
+					const trustedFingerprint = deviceManager.getTrustedFingerprint(userId, deviceId);
+					if (trustedFingerprint && trustedFingerprint !== deviceBundle.identityFingerprint) {
+						continue;
+					}
+					if (!trustedFingerprint) {
+						deviceManager.rememberTrustedFingerprint(userId, deviceId, deviceBundle.identityFingerprint);
+					}
+					if (!verifiedKeys[userId]) {
+						verifiedKeys[userId] = {};
+					}
+					verifiedKeys[userId][deviceId] = deviceBundle.roomPublicKey;
+				}
+			}
+			return verifiedKeys;
 		} catch (error) {
 			console.error('Failed to get member public keys:', error);
 			throw error;

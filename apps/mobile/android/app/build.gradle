@@ -87,9 +87,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace 'com.arm8tron.chatify'
+    namespace 'com.arm8tron.hoplio'
     defaultConfig {
-        applicationId 'com.arm8tron.chatify'
+        applicationId 'com.arm8tron.hoplio'
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 3

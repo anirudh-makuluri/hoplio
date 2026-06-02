@@ -106,6 +106,21 @@ export const generateBoxKeypair = (): {
 	};
 };
 
+export const generateSigningKeypair = (): {
+	publicKey: string;
+	privateKey: string;
+} => {
+	if (!sodiumReady) {
+		throw new Error('Sodium not initialized. Call initiateSodium() first.');
+	}
+
+	const keypair = sodium.crypto_sign_keypair();
+	return {
+		publicKey: toBase64(keypair.publicKey),
+		privateKey: toBase64(keypair.privateKey),
+	};
+};
+
 /**
  * Encrypt a message for a recipient using their public key
  * Uses the combined public key approach
@@ -343,6 +358,32 @@ export const verifySignature = (
 	} catch (_error) {
 		return false;
 	}
+};
+
+export const computeDeviceFingerprint = (
+	identityPublicKey: string,
+	signingPublicKey: string
+): string => {
+	if (!sodiumReady) {
+		throw new Error('Sodium not initialized. Call initiateSodium() first.');
+	}
+
+	const fingerprintSource = `${normalizeBase64Key(identityPublicKey)}:${normalizeBase64Key(signingPublicKey)}`;
+	const hash = sodium.crypto_generichash(32, sodium.from_string(fingerprintSource), null);
+	return sodium.to_hex(hash);
+};
+
+export const formatFingerprintForDisplay = (fingerprint: string): string => {
+	return fingerprint.match(/.{1,4}/g)?.join(' ') || fingerprint;
+};
+
+export const buildRoomKeySignaturePayload = (
+	roomId: string,
+	userId: string,
+	deviceId: string,
+	roomPublicKey: string
+): string => {
+	return `${roomId}:${userId}:${deviceId}:${normalizeBase64Key(roomPublicKey)}`;
 };
 
 /**

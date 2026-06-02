@@ -435,6 +435,44 @@ test('chat events use authenticated socket identity instead of client-supplied i
 	}
 });
 
+test('chat events accept legacy numeric message ids and normalize them', async () => {
+	const harness = await startHarness();
+	try {
+		const client = connectClient(harness, 'session-user-1');
+		await once(client, 'connect');
+
+		client.emit('chat_event_client_to_server', {
+			id: 123456789,
+			roomId: 'room-1',
+			type: 'text',
+			chatInfo: 'legacy numeric id'
+		});
+
+		await flushSocketEvents();
+
+		assert.deepEqual(harness.calls.roomNewChatEvent, [
+			{
+				id: '123456789',
+				roomId: 'room-1',
+				userUid: 'user-1',
+				userName: 'User One',
+				userPhoto: 'https://example.com/u1.png',
+				type: 'text',
+				chatInfo: 'legacy numeric id',
+				fileName: '',
+				isMsgEdited: false,
+				isMsgSaved: false,
+				isEncrypted: false,
+				encrypted: ''
+			}
+		]);
+
+		client.close();
+	} finally {
+		await stopHarness(harness);
+	}
+});
+
 test('update_user_data uses the authenticated socket user and filters unsupported fields', async () => {
 	const harness = await startHarness();
 	try {

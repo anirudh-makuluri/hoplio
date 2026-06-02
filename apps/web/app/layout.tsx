@@ -17,7 +17,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-	title: "Chatify",
+	title: "Hoplio",
 	description: "Upgrading your chatting experience!",
 };
 

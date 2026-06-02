@@ -1,4 +1,4 @@
-# Chatify Next
+# Hoplio Next
 
 A modern, feature-rich real-time chat application built with Next.js, featuring AI-powered assistance, group management, and seamless messaging capabilities.
 

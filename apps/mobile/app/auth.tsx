@@ -201,7 +201,7 @@ export default function Page() {
 				) : (
 					<View style={styles.form}>
 						<Text style={[styles.welcomeTitle, { color: colors.text }]}>
-							Welcome to Chatify
+							Welcome to Hoplio
 						</Text>
 						<Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
 							Sign in or create an account to continue

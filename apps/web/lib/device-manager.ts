@@ -5,12 +5,32 @@
  * Stores device data locally in localStorage
  */
 
-import { DeviceKeyPair, RoomKeyPair, E2EEDeviceState } from './e2ee-types';
-import { generateBoxKeypair, generateDeviceId } from './crypto';
+import { DeviceKeyPair, DeviceSigningKeyPair, RoomKeyPair, E2EEDeviceState } from './e2ee-types';
+import { generateBoxKeypair, generateDeviceId, generateSigningKeypair } from './crypto';
 
 const DEVICE_STORAGE_KEY = 'e2ee_device_state';
 const DEVICE_IDENTITY_KEY = 'e2ee_identity_keypair';
 const DEVICE_ROOM_KEYS_KEY = 'e2ee_room_keypairs';
+const TRUSTED_FINGERPRINTS_KEY = 'e2ee_trusted_device_fingerprints';
+
+const ensureStateShape = (state: E2EEDeviceState): E2EEDeviceState => {
+	if (state.signingKeyPair) {
+		return state;
+	}
+
+	const signingKeypair = generateSigningKeypair();
+	const nextState: E2EEDeviceState = {
+		...state,
+		signingKeyPair: {
+			deviceId: state.deviceId || generateDeviceId('web'),
+			deviceName: state.deviceName || 'Web Device',
+			publicKey: signingKeypair.publicKey,
+			privateKey: signingKeypair.privateKey,
+		},
+	};
+	saveDeviceState(nextState);
+	return nextState;
+};
 
 /**
  * Initialize device state
@@ -27,6 +47,7 @@ export const initializeDevice = (deviceName?: string): E2EEDeviceState => {
 		// Generate new device
 		const deviceId = generateDeviceId('web');
 		const identityKeypair = generateBoxKeypair();
+		const signingKeypair = generateSigningKeypair();
 
 		const deviceState: E2EEDeviceState = {
 			initialized: true,
@@ -36,6 +57,12 @@ export const initializeDevice = (deviceName?: string): E2EEDeviceState => {
 				deviceId,
 				publicKey: identityKeypair.publicKey,
 				privateKey: identityKeypair.privateKey,
+				deviceName: deviceName || `Web Device`,
+			},
+			signingKeyPair: {
+				deviceId,
+				publicKey: signingKeypair.publicKey,
+				privateKey: signingKeypair.privateKey,
 				deviceName: deviceName || `Web Device`,
 			},
 			roomKeyPairs: {},
@@ -59,7 +86,7 @@ export const getDeviceState = (): E2EEDeviceState | null => {
 		const stored = localStorage.getItem(DEVICE_STORAGE_KEY);
 		if (!stored) return null;
 
-		return JSON.parse(stored) as E2EEDeviceState;
+		return ensureStateShape(JSON.parse(stored) as E2EEDeviceState);
 	} catch (error) {
 		console.error('Failed to retrieve device state:', error);
 		return null;
@@ -96,6 +123,15 @@ export const getIdentityKeyPair = (): DeviceKeyPair | null => {
 export const getIdentityPublicKey = (): string | null => {
 	const keypair = getIdentityKeyPair();
 	return keypair?.publicKey || null;
+};
+
+export const getSigningKeyPair = () => {
+	const state = getDeviceState();
+	return state?.signingKeyPair || null;
+};
+
+export const getSigningPublicKey = (): string | null => {
+	return getSigningKeyPair()?.publicKey || null;
 };
 
 /**
@@ -262,6 +298,7 @@ export const clearDeviceData = (): void => {
 			localStorage.removeItem(DEVICE_STORAGE_KEY);
 			localStorage.removeItem(DEVICE_IDENTITY_KEY);
 			localStorage.removeItem(DEVICE_ROOM_KEYS_KEY);
+			localStorage.removeItem(TRUSTED_FINGERPRINTS_KEY);
 		}
 	} catch (error) {
 		console.error('Failed to clear device data:', error);
@@ -274,10 +311,11 @@ export const clearDeviceData = (): void => {
  */
 export const exportPublicKeys = (): {
 	identityPublicKey: string;
+	signingPublicKey: string;
 	roomPublicKeys: { [roomId: string]: string };
 } => {
 	const state = getDeviceState();
-	if (!state || !state.identityKeyPair) {
+	if (!state || !state.identityKeyPair || !state.signingKeyPair) {
 		throw new Error('Device not initialized');
 	}
 
@@ -288,8 +326,95 @@ export const exportPublicKeys = (): {
 
 	return {
 		identityPublicKey: state.identityKeyPair.publicKey,
+		signingPublicKey: state.signingKeyPair.publicKey,
 		roomPublicKeys,
 	};
+};
+
+export const getTrustedFingerprint = (userId: string, deviceId: string): string | null => {
+	try {
+		if (typeof window === 'undefined') return null;
+		const stored = localStorage.getItem(TRUSTED_FINGERPRINTS_KEY);
+		if (!stored) return null;
+		const fingerprints = JSON.parse(stored) as Record<string, string>;
+		return fingerprints[`${userId}:${deviceId}`] || null;
+	} catch (_error) {
+		return null;
+	}
+};
+
+export const rotateSigningKeyPair = (deviceName?: string) => {
+	try {
+		const state = getDeviceState();
+		if (!state || !state.deviceId) {
+			throw new Error('Device not initialized');
+		}
+
+		const newKeypair = generateSigningKeypair();
+		const newSigningKeyPair = {
+			deviceId: state.deviceId,
+			publicKey: newKeypair.publicKey,
+			privateKey: newKeypair.privateKey,
+			deviceName: deviceName || state.deviceName || 'Web Device',
+		};
+
+		state.signingKeyPair = newSigningKeyPair;
+		saveDeviceState(state);
+		return newSigningKeyPair;
+	} catch (error) {
+		console.error('Failed to rotate signing key pair:', error);
+		throw new Error(`Failed to rotate signing keys: ${error}`);
+	}
+};
+
+export const replaceDeviceKeyPairs = (
+	identityKeyPair: DeviceKeyPair,
+	signingKeyPair: DeviceSigningKeyPair,
+	deviceName?: string
+): E2EEDeviceState => {
+	try {
+		const state = getDeviceState();
+		if (!state || !state.deviceId) {
+			throw new Error('Device not initialized');
+		}
+
+		const nextState: E2EEDeviceState = {
+			...state,
+			deviceName: deviceName || state.deviceName,
+			identityKeyPair: {
+				...identityKeyPair,
+				deviceId: state.deviceId,
+				deviceName: deviceName || identityKeyPair.deviceName,
+			},
+			signingKeyPair: {
+				...signingKeyPair,
+				deviceId: state.deviceId,
+				deviceName: deviceName || signingKeyPair.deviceName,
+			},
+		};
+
+		saveDeviceState(nextState);
+		return nextState;
+	} catch (error) {
+		console.error('Failed to replace device key pairs:', error);
+		throw new Error(`Failed to replace device keys: ${error}`);
+	}
+};
+
+export const rememberTrustedFingerprint = (
+	userId: string,
+	deviceId: string,
+	fingerprint: string
+): void => {
+	try {
+		if (typeof window === 'undefined') return;
+		const stored = localStorage.getItem(TRUSTED_FINGERPRINTS_KEY);
+		const fingerprints = stored ? (JSON.parse(stored) as Record<string, string>) : {};
+		fingerprints[`${userId}:${deviceId}`] = fingerprint;
+		localStorage.setItem(TRUSTED_FINGERPRINTS_KEY, JSON.stringify(fingerprints));
+	} catch (error) {
+		console.error('Failed to persist trusted fingerprint:', error);
+	}
 };
 
 /**
@@ -326,6 +451,7 @@ export const getDeviceInfo = () => {
 		deviceName: state.deviceName,
 		initialized: state.initialized,
 		identityKeyRegistered: !!state.identityKeyPair?.publicKey,
+		signingKeyRegistered: !!state.signingKeyPair?.publicKey,
 		roomsWithKeys: Object.keys(state.roomKeyPairs).length,
 	};
 };

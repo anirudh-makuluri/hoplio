@@ -31,6 +31,21 @@ function attachSocketServer(io, dependencies = {}) {
 		return value.trim();
 	}
 
+	function validateMessageId(value, label = 'messageId') {
+		if (typeof value === 'number') {
+			if (!Number.isFinite(value)) {
+				throw new Error(`Invalid ${label}`);
+			}
+			return validateEntityId(String(value), label);
+		}
+
+		if (typeof value === 'bigint') {
+			return validateEntityId(value.toString(), label);
+		}
+
+		return validateEntityId(value, label);
+	}
+
 	function validateMessageText(value, label = 'message') {
 		if (typeof value !== 'string') {
 			throw new Error(`${label} is required`);
@@ -239,7 +254,7 @@ function attachSocketServer(io, dependencies = {}) {
 				}
 
 				const roomId = validateEntityId(data.roomId, 'roomId');
-				const messageId = data.id ? validateEntityId(data.id, 'messageId') : undefined;
+				const messageId = data.id == null ? undefined : validateMessageId(data.id, 'messageId');
 				const { roomRef, roomData } = await getRoomDetails(roomId);
 				ensureRoomMember(roomData, socket.uid);
 				const room = await getOrCreateRoomInstance(roomId, roomRef, roomData);
@@ -291,7 +306,7 @@ function attachSocketServer(io, dependencies = {}) {
 								id: uuid.v4(),
 								roomId,
 								userUid: 'ai-assistant',
-								userName: 'Chatify AI',
+								userName: 'Hoplio AI',
 								userPhoto: 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff',
 								type: 'text',
 								chatInfo: aiResponse.response,
@@ -406,7 +421,7 @@ function attachSocketServer(io, dependencies = {}) {
 					throw new Error('One or more information is missing');
 				}
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
-				const normalizedMessageId = validateEntityId(id, 'messageId');
+				const normalizedMessageId = validateMessageId(id, 'messageId');
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const normalizedReactionId = validateEntityId(reactionId, 'reactionId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
@@ -433,7 +448,7 @@ function attachSocketServer(io, dependencies = {}) {
 				}
 
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
-				const normalizedMessageId = validateEntityId(id, 'messageId');
+				const normalizedMessageId = validateMessageId(id, 'messageId');
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
@@ -457,7 +472,7 @@ function attachSocketServer(io, dependencies = {}) {
 				}
 
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
-				const normalizedMessageId = validateEntityId(id, 'messageId');
+				const normalizedMessageId = validateMessageId(id, 'messageId');
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const normalizedNewText = validateMessageText(newText, 'newText');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
@@ -483,7 +498,7 @@ function attachSocketServer(io, dependencies = {}) {
 				}
 
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
-				const normalizedMessageId = validateEntityId(id, 'messageId');
+				const normalizedMessageId = validateMessageId(id, 'messageId');
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);

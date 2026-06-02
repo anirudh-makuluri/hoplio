@@ -40,6 +40,10 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 		const isAIMessage = msg.isAIMessage || msg.userUid === 'ai-assistant';
 		const senderName = msg.userUid == user?.uid ? 'You' : isAIMessage ? 'AI' : msg.userName?.split(' ')[0];
 
+		if (msg.isEncrypted) {
+			return `${senderName}: Secure message`;
+		}
+
 		if (msg.type === 'text') {
 			const preview = msg.chatInfo?.length > 35 ? msg.chatInfo.substring(0, 35) + '...' : msg.chatInfo;
 			return `${senderName}: ${preview}`;

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Pressable, Image, Linking, StyleSheet } from 'react-native';
-import { Avatar, Text, Menu, Portal, Dialog, Button, TextInput, Chip } from 'react-native-paper';
+import { Avatar, Text, Menu, Portal, Dialog, Button, TextInput } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { ChatDate, ChatMessage } from '~/lib/types';
 import { useAppDispatch } from '~/redux/store';
@@ -38,9 +38,10 @@ export default function ChatBubble({
 		);
 	}
 
-	const isSelf = message.userUid == user?.uid;
-	const isAIMessage = message.isAIMessage || message.userUid === 'ai-assistant';
-	const time = new Date(message.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
+	const chatMessage = message as ChatMessage;
+	const isSelf = chatMessage.userUid == user?.uid;
+	const isAIMessage = chatMessage.isAIMessage || chatMessage.userUid === 'ai-assistant';
+	const time = new Date(chatMessage.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
 	const openMenu = () => setMenuVisible(true);
 	const closeMenu = () => setMenuVisible(false);
@@ -170,7 +171,7 @@ export default function ChatBubble({
 					{!isSelf && !message.isConsecutiveMessage && (isGroup || isAIMessage) && (
 						<View style={styles.senderRow}>
 							<Text style={[styles.senderName, { color: isAIMessage ? '#6366f1' : colors.textSecondary }]}>
-								{isAIMessage ? 'Chatify AI' : message.userName}
+								{isAIMessage ? 'Hoplio AI' : message.userName}
 							</Text>
 							{isAIMessage && (
 								<View style={[styles.aiBadge, { backgroundColor: '#6366f1' }]}>
@@ -232,7 +233,18 @@ export default function ChatBubble({
 									{/* Text message */}
 									{message.type === 'text' && (
 										<Text style={[styles.messageText, { color: isSelf ? '#fff' : colors.text }]}>
-											{message.chatInfo}
+										{message.isEncrypted && !message.chatInfo 
+											? 'Encrypted message - Unable to decrypt'
+											: message.chatInfo
+										}
+									{chatMessage.isEncrypted && (
+										<Text
+											style={[
+												styles.encryptionLabel,
+												{ color: isSelf ? 'rgba(255,255,255,0.75)' : colors.textSecondary },
+											]}
+										>
+											Secure message
 										</Text>
 									)}
 
@@ -263,7 +275,7 @@ export default function ChatBubble({
 						contentStyle={{ backgroundColor: colors.surface, borderRadius: 12 }}
 					>
 						<Menu.Item onPress={handleReactPress} title="React" leadingIcon="emoticon-happy-outline" />
-						{isSelf && !isAIMessage && <Menu.Item onPress={handleEditPress} title="Edit" leadingIcon="pencil" />}
+						{isSelf && !isAIMessage && !chatMessage.isEncrypted && <Menu.Item onPress={handleEditPress} title="Edit" leadingIcon="pencil" />}
 						{isSelf && !isAIMessage && (
 							<Menu.Item onPress={handleDeletePress} title="Delete" leadingIcon="delete" titleStyle={{ color: '#ef4444' }} />
 						)}
@@ -448,6 +460,10 @@ const styles = StyleSheet.create({
 	messageText: {
 		fontSize: 15,
 		lineHeight: 21,
+	},
+	encryptionLabel: {
+		fontSize: 11,
+		marginTop: 6,
 	},
 	timeRow: {
 		flexDirection: 'row',

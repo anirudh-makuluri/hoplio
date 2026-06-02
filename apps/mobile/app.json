@@ -1,8 +1,8 @@
 {
   "expo": {
-    "name": "Chatify",
-    "slug": "chatify-rne",
-    "scheme": "chatify-rne",
+    "name": "Hoplio",
+    "slug": "hoplio",
+    "scheme": "hoplio",
     "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -36,7 +36,7 @@
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.ACCESS_NETWORK_STATE"
       ],
-      "package": "com.arm8tron.chatify"
+      "package": "com.arm8tron.hoplio"
     },
     "web": {
       "favicon": "./assets/icon.png"

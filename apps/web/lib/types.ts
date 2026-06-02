@@ -1,7 +1,7 @@
 import { RecipientEncryptedMessages, EncryptedData } from './e2ee-types';
 
 export type ChatMessage = {
-	id: number;
+	id: string | number;
 	roomId: string;
 	chatDocId?: string
 	type: 'text' | 'image' | 'gif' | 'file';
@@ -86,7 +86,7 @@ export type TGiphy = {
 
 export type TReactionEvent = {
 	reactionId: string,
-	id: number,
+	id: string | number,
 	chatDocId: string,
 	userUid: string,
 	roomId: string,
@@ -94,20 +94,20 @@ export type TReactionEvent = {
 }
 
 export type TDeleteEvent = {
-	id: number,
+	id: string | number,
 	chatDocId: string,
 	roomId: string,
 }
 
 export type TEditEvent = {
-	id: number,
+	id: string | number,
 	chatDocId: string,
 	roomId: string,
 	newText: string
 }
 
 export type TSaveEvent = {
-	id: number,
+	id: string | number,
 	chatDocId: string,
 	roomId: string,
 }

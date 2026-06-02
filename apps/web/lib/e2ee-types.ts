@@ -18,6 +18,13 @@ export type DeviceKeyPair = {
 	deviceName: string;
 };
 
+export type DeviceSigningKeyPair = {
+	deviceId: string;
+	publicKey: string; // base64
+	privateKey: string; // base64 (stored locally only)
+	deviceName: string;
+};
+
 export type RoomKeyPair = {
 	roomId: string;
 	publicKey: string; // base64
@@ -30,6 +37,7 @@ export type RegisterDeviceIdentityKeyRequest = {
 	deviceId: string;
 	deviceName: string;
 	identityPublicKey: string; // base64
+	signingPublicKey: string; // base64
 };
 
 export type RegisterDeviceIdentityKeyResponse = {
@@ -43,6 +51,7 @@ export type RegisterDeviceRoomKeyRequest = {
 	deviceId: string;
 	deviceName: string;
 	roomPublicKey: string; // base64
+	roomKeySignature: string; // base64 detached signature
 };
 
 export type RegisterDeviceRoomKeyResponse = {
@@ -51,12 +60,24 @@ export type RegisterDeviceRoomKeyResponse = {
 	deviceId: string;
 };
 
+export type RoomMemberKeyBundle = {
+	roomPublicKey: string; // base64 public key
+	roomKeySignature: string; // base64 detached signature
+	identityPublicKey: string; // base64
+	signingPublicKey: string; // base64
+	identityFingerprint: string; // hex
+	deviceName: string;
+	version: number;
+	derivationVersion: number;
+	updatedAt: string;
+};
+
 export type GetRoomPublicKeysResponse = {
 	success: boolean;
 	roomId: string;
 	members: {
 		[userId: string]: {
-			[deviceId: string]: string; // base64 public key
+			[deviceId: string]: RoomMemberKeyBundle;
 		};
 	};
 	updatedAt: string; // ISO-8601
@@ -67,12 +88,16 @@ export type GetIdentityKeyResponse = {
 	userId: string;
 	deviceId?: string;
 	publicKey?: string; // base64 (single device query)
+	signingPublicKey?: string; // base64
+	fingerprint?: string; // hex
 	version?: number;
 	deviceName?: string;
 	updatedAt?: string;
 	devices?: {
 		[deviceId: string]: {
 			publicKey: string; // base64
+			signingPublicKey: string; // base64
+			fingerprint: string; // hex
 			version: number;
 			deviceName: string;
 			updatedAt: string; // ISO-8601
@@ -84,8 +109,12 @@ export type RotateKeysRequest = {
 	deviceId: string;
 	deviceName: string;
 	newIdentityPublicKey: string; // base64
+	newSigningPublicKey: string; // base64
 	roomKeys: {
 		[roomId: string]: string; // base64 room public key
+	};
+	roomKeySignatures: {
+		[roomId: string]: string; // base64 detached signature
 	};
 };
 
@@ -138,6 +167,7 @@ export type E2EEDeviceState = {
 	deviceId: string | null;
 	deviceName: string | null;
 	identityKeyPair: DeviceKeyPair | null; // private key stored locally
+	signingKeyPair: DeviceSigningKeyPair | null; // private key stored locally
 	roomKeyPairs: {
 		[roomId: string]: RoomKeyPair;
 	};

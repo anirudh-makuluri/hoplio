@@ -1,13 +1,13 @@
 {
-  "name": "chatify-monorepo",
+  "name": "hoplio-monorepo",
   "private": true,
   "packageManager": "pnpm@10.0.0",
   "scripts": {
     "dev": "turbo run dev --parallel",
     "dev:all": "turbo run dev --parallel",
-    "dev:backend": "pnpm --filter @chatify/backend mon",
-    "dev:web": "pnpm --filter @chatify/web dev",
-    "dev:mobile": "pnpm --filter @chatify/mobile start",
+    "dev:backend": "pnpm --filter @hoplio/backend mon",
+    "dev:web": "pnpm --filter @hoplio/web dev",
+    "dev:mobile": "pnpm --filter @hoplio/mobile start",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",

@@ -1,6 +1,6 @@
-# Chatify Monorepo
+# Hoplio Monorepo
 
-This directory is the new monorepo shell for Chatify.
+This directory is the new monorepo shell for Hoplio.
 
 ## Planning
 
@@ -24,9 +24,9 @@ This directory is the new monorepo shell for Chatify.
 2. Run all dev tasks
    - `pnpm dev`
 3. Run by app (after app imports)
-   - `pnpm --filter @chatify/backend start`
-   - `pnpm --filter @chatify/web dev`
-   - `pnpm --filter @chatify/mobile start`
+   - `pnpm --filter @hoplio/backend start`
+   - `pnpm --filter @hoplio/web dev`
+   - `pnpm --filter @hoplio/mobile start`
 
 ## Next Step
 

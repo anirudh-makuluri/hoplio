@@ -1,5 +1,5 @@
 import { ChatDate, ChatMessage, TRoomData, PresenceUpdate } from "../lib/types";
-import { formatChatMessages } from "../lib/utils";
+import { decryptChatMessage, formatChatMessages } from "../lib/utils";
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from '@reduxjs/toolkit'
 import { offlineStorage } from '../lib/offlineStorage';
@@ -31,9 +31,14 @@ export const chatSlice = createSlice({
 	reducers: {
 		joinChatRoom: (state, action: PayloadAction<TRoomData>) => {
 			const roomData = action.payload
+			const isChatMessage = (message: ChatMessage | ChatDate): message is ChatMessage => !message.isDate;
+			const decryptedMessages = (roomData.messages || []).map((message) =>
+				isChatMessage(message) ? decryptChatMessage(message) : message
+			);
 			state.rooms[roomData.roomId] = {
 				is_group: roomData.is_group,
-				messages: formatChatMessages(roomData.messages),
+				is_ai_room: roomData.is_ai_room,
+				messages: formatChatMessages(decryptedMessages),
 				name: roomData.name,
 				photo_url: roomData.photo_url,
 				roomId: roomData.roomId,
@@ -53,10 +58,11 @@ export const chatSlice = createSlice({
 			state.activeChatRoomId = action.payload
 		},
 	addMessage: (state, action: PayloadAction<ChatMessage>) => {
-		const chatMessages = state.rooms[action.payload.roomId].messages;
+		const decryptedMessage = decryptChatMessage(action.payload);
+		const chatMessages = state.rooms[decryptedMessage.roomId].messages;
 
 		// Check for duplicates using id
-		if(chatMessages.findIndex(msg => !msg.isDate && msg.id == action.payload.id) != -1) return state;
+		if(chatMessages.findIndex(msg => !msg.isDate && msg.id == decryptedMessage.id) != -1) return state;
 
 			let lastMessage = chatMessages[chatMessages.length - 1];
 
@@ -66,18 +72,18 @@ export const chatSlice = createSlice({
 			}
 
 			if (lastMessage == null) {
-				action.payload.isConsecutiveMessage = false;
+				decryptedMessage.isConsecutiveMessage = false;
 				chatMessages.push(newChatDate);
 			} else {
 				if (lastMessage.isDate) lastMessage = chatMessages[chatMessages.length - 2];
 
-				action.payload.isConsecutiveMessage = false;
-				if (lastMessage.userUid == action.payload.userUid) {
-					action.payload.isConsecutiveMessage = true;
+				decryptedMessage.isConsecutiveMessage = false;
+				if (lastMessage.userUid == decryptedMessage.userUid) {
+					decryptedMessage.isConsecutiveMessage = true;
 				}
 
 
-				const newMessageDate = new Date(action.payload.time);
+				const newMessageDate = new Date(decryptedMessage.time);
 				const lastMessageDate = new Date(lastMessage.time);
 
 				const isToday = newMessageDate.getDate() === lastMessageDate.getDate() &&
@@ -89,7 +95,7 @@ export const chatSlice = createSlice({
 				}
 			}
 
-			state.rooms[action.payload.roomId].messages = [...chatMessages, action.payload]
+			state.rooms[decryptedMessage.roomId].messages = [...chatMessages, decryptedMessage]
 		},
 		addChatDoc: (state, action: PayloadAction<{ messages: ChatMessage[], roomId: string }>) => {
 			const formattedMessages = formatChatMessages(action.payload.messages);
@@ -127,7 +133,8 @@ export const chatSlice = createSlice({
 				return;
 			}
 
-			const formattedMessages = formatChatMessages(messages);
+			const decryptedMessages = messages.map((message) => decryptChatMessage(message));
+			const formattedMessages = formatChatMessages(decryptedMessages);
 			const currentMessages = state.rooms[roomId].messages;
 
 			// Check if first current message and last new message are on same day
@@ -307,7 +314,7 @@ export const chatSlice = createSlice({
 		loadOfflineMessages: (state, action: PayloadAction<{ roomId: string; messages: ChatMessage[] }>) => {
 			const { roomId, messages } = action.payload;
 			if (state.rooms[roomId]) {
-				state.rooms[roomId].messages = formatChatMessages(messages);
+				state.rooms[roomId].messages = formatChatMessages(messages.map((message) => decryptChatMessage(message)));
 			}
 		},
 		saveMessageOffline: (state, action: PayloadAction<ChatMessage>) => {

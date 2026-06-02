@@ -11,7 +11,8 @@ import {
 	FileCode,
 	Clock,
 	Lock,
-	ChevronUp
+	ChevronUp,
+	RotateCcw
 } from 'lucide-react'
 import { useToast } from "@/components/ui/use-toast"
 import { useAppDispatch, useAppSelector } from '@/redux/store';
@@ -41,10 +42,10 @@ import {
 	useFetchRoomMemberPublicKeys,
 	useE2EEError,
 	useEncryptRoomMessage,
-	useDeviceId
+	useDeviceId,
+	useRotateIdentityKeys
 } from '@/lib/hooks/useE2EE';
 import * as crypto from '@/lib/crypto';
-import * as deviceManager from '@/lib/device-manager';
 
 export default function Room() {
 	const { toast } = useToast();
@@ -63,6 +64,7 @@ export default function Room() {
 	// E2EE hooks for room encryption
 	const { memberPublicKeys, fetch: fetchKeys, loading: fetchingKeys } = useFetchRoomMemberPublicKeys(activeChatRoomId);
 	const { encrypt: encryptForRoom, loading: encrypting } = useEncryptRoomMessage(activeChatRoomId);
+	const { rotate: rotateKeys, loading: rotatingKeys } = useRotateIdentityKeys();
 	const [encryptionStatus, setEncryptionStatus] = useState<'idle' | 'encrypting' | 'sending'>('idle');
 
     const presenceText = (() => {
@@ -89,6 +91,8 @@ export default function Room() {
 	const [giphySearchText, setGiphySearchText] = useState('');
 	const [gifList, setGifList] = useState<TGiphy[]>([]);
 	const [lastMessageContent, setLastMessageContent] = useState<string>('');
+
+	const generateMessageId = () => `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`;
 
 	// Fetch member public keys when room changes (for all room types)
 	useEffect(() => {
@@ -157,7 +161,7 @@ export default function Room() {
 
 		// Handle image messages
 		previewImages.forEach(async (data) => {
-			const id = (Date.now() * Math.floor(Math.random() * 1000));
+			const id = generateMessageId();
 			const storagePath = `${activeChatRoomId}/${id}`;
 			const downloadUrl = await saveFileToStorage(data.file, storagePath, user.uid);
 
@@ -193,7 +197,7 @@ export default function Room() {
 				setEncryptionStatus('sending');
 				
 				const chatMessage: ChatMessage = {
-					id: (Date.now() * Math.floor(Math.random() * 1000)),
+					id: generateMessageId(),
 					roomId: activeChatRoomId,
 					type: 'text',
 					chatInfo: "", // Don't send plaintext
@@ -226,7 +230,7 @@ export default function Room() {
 		} else {
 			// Send unencrypted message
 			const chatMessage: ChatMessage = {
-				id: (Date.now() * Math.floor(Math.random() * 1000)),
+				id: generateMessageId(),
 				roomId: activeChatRoomId,
 				type: 'text',
 				chatInfo: input,
@@ -252,7 +256,7 @@ export default function Room() {
 		}
 
 		const chatMessage: ChatMessage = {
-			id: (Date.now() * Math.floor(Math.random() * 1000)),
+			id: generateMessageId(),
 			roomId: activeChatRoomId,
 			type: 'gif',
 			chatInfo: url,
@@ -311,6 +315,33 @@ export default function Room() {
 
 	function handleBackButton() {
 		dispatch(setActiveRoomId(''));
+	}
+
+	async function handleRotateKeys() {
+		if (!user?.uid) {
+			toast({
+				title: "Error",
+				description: "You need to be signed in to rotate E2EE keys.",
+				variant: "destructive"
+			});
+			return;
+		}
+
+		try {
+			await rotateKeys(user.uid);
+			await fetchKeys();
+			toast({
+				title: "Success",
+				description: "E2EE keys rotated successfully. Fingerprint has been updated.",
+			});
+		} catch (error) {
+			console.error('Failed to rotate keys:', error);
+			toast({
+				title: "Error",
+				description: "Failed to rotate E2EE keys. Please try again.",
+				variant: "destructive"
+			});
+		}
 	}
 
 	function openImageChoose() {
@@ -382,11 +413,22 @@ export default function Room() {
 					{presenceText && <span className='text-xs opacity-60'>{presenceText}</span>}
 				</div>
 				{activeRoom.is_ai_room != true && <SemanticSearchBar roomId={activeChatRoomId} />}
-				{activeRoom.is_group && (
-					<div className='ml-auto'>
+				<div className='ml-auto flex items-center gap-2'>
+					{e2eeError && (
+						<Button 
+							onClick={handleRotateKeys} 
+							variant='outline' 
+							size='sm'
+							disabled={rotatingKeys || fetchingKeys}
+							title='Rotate E2EE keys to fix fingerprint mismatch'
+						>
+							<RotateCcw size={16} className='text-yellow-600 dark:text-yellow-400' />
+						</Button>
+					)}
+					{activeRoom.is_group && (
 						<ManageGroupDialog room={activeRoom} allFriends={user?.friend_list || []} />
-					</div>
-				)}
+					)}
+				</div>
 			</div>
 			
 			{/* Messages Container */}

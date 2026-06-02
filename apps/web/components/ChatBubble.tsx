@@ -224,6 +224,10 @@ function getTooltipText(reactors: { uid: string, name: string }[]) {
 
 
 function TextMessage({ message }: { message: ChatMessage | ChatDate }) {
+	// Show placeholder if message is encrypted but empty (decryption failed)
+	if (message.isEncrypted && !message.chatInfo) {
+		return <p className='italic opacity-70 text-yellow-600 dark:text-yellow-400'>Encrypted message - Unable to decrypt</p>;
+	}
 	return <p>{message.chatInfo}</p>;
 }
 

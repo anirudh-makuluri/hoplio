@@ -1,5 +1,5 @@
 {
-  "name": "@chatify/web",
+  "name": "@hoplio/web",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
-    "server": "pnpm --filter @chatify/backend start"
+    "server": "pnpm --filter @hoplio/backend start"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",
@@ -45,8 +45,8 @@
     "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
-    "@chatify/eslint-config": "workspace:*",
-    "@chatify/tsconfig": "workspace:*",
+    "@hoplio/eslint-config": "workspace:*",
+    "@hoplio/tsconfig": "workspace:*",
     "@types/node": "^20",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",

@@ -176,7 +176,7 @@ router.post("/users/:uid/ai-assistant/room", async function (req, res) {
 			roomId: aiRoomId,
 			members: [userId, 'ai-assistant'],
 			is_group: false,
-			name: 'Chatify AI Assistant',
+			name: 'Hoplio AI Assistant',
 			photo_url: 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff',
 			created_at: new Date(),
 			is_ai_room: true

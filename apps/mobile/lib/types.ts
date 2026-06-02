@@ -1,3 +1,5 @@
+import { EncryptedData, RecipientEncryptedMessages } from './e2ee-types';
+
 export type ChatMessage = {
 	id: number | string;
 	roomId: string;
@@ -8,6 +10,9 @@ export type ChatMessage = {
 	isMsgEdited?: boolean;
 	isMsgSaved?: boolean;
 	isAIMessage?: boolean;
+	isEncrypted?: boolean;
+	encrypted?: EncryptedData | RecipientEncryptedMessages | '';
+	decryptionError?: string;
 	reactions?: Array<{
 		id: string;
 		reactors: Array<{ uid: string; name: string }>;

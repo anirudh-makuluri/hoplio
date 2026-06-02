@@ -1,22 +1,29 @@
 import React, { useState, useMemo } from 'react';
-import { FlatList, View, Text, StyleSheet } from 'react-native';
+import { FlatList, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon, IconButton, Button } from 'react-native-paper';
+import { Icon, Button } from 'react-native-paper';
 import RoomDisplayItem from '../RoomDisplayItem';
 import StatusRow from '../StatusRow';
 import FilterTabs, { FilterType } from '../FilterTabs';
 import { useUser } from '~/app/providers';
 import { useTheme } from '~/lib/themeContext';
 import { useToast } from '../Toast';
+import { useAppDispatch, useAppSelector } from '~/redux/store';
+import { joinChatRoom, setActiveRoomId } from '~/redux/chatSlice';
+import { joinSocketRoom } from '~/redux/socketSlice';
+import { createAIAssistantRoom, getErrorMessage } from '~/lib/utils';
+import { router } from 'expo-router';
 
 interface RoomListProps {
 	onCreateGroup?: () => void;
 }
 
 export default function RoomList({ onCreateGroup }: RoomListProps) {
-	const { user } = useUser();
+	const { user, updateUser } = useUser();
 	const { colors, isDark } = useTheme();
 	const { showToast } = useToast();
+	const dispatch = useAppDispatch();
+	const rooms = useAppSelector((state) => state.chat.rooms);
 	const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
 	const insets = useSafeAreaInsets();
@@ -36,6 +43,40 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 
 	const handleComingSoon = () => {
 		showToast({ message: 'This feature is coming soon!', type: 'coming-soon' });
+	};
+
+	const aiRoom = user?.rooms?.find((room) => room.is_ai_room);
+
+	const openAIRoom = async () => {
+		if (!user) {
+			return;
+		}
+
+		try {
+			if (aiRoom) {
+				if (!rooms[aiRoom.roomId]) {
+					dispatch(joinSocketRoom(aiRoom.roomId));
+					dispatch(joinChatRoom(aiRoom));
+				}
+
+				dispatch(setActiveRoomId(aiRoom.roomId));
+				router.push('/room');
+				return;
+			}
+
+			const response = await createAIAssistantRoom(user.uid);
+			if (!response.success || !response.room || !response.roomId) {
+				throw new Error(response.error || 'Unable to create AI assistant room');
+			}
+
+			dispatch(joinSocketRoom(response.roomId));
+			dispatch(joinChatRoom(response.room));
+			dispatch(setActiveRoomId(response.roomId));
+			updateUser({ rooms: [...(user.rooms || []), response.room] });
+			router.push('/room');
+		} catch (error) {
+			showToast({ message: getErrorMessage(error, 'Unable to open AI assistant'), type: 'error' });
+		}
 	};
 
 	const renderEmptyState = () => (
@@ -106,6 +147,22 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 				onFilterChange={setActiveFilter}
 				onComingSoon={handleComingSoon}
 			/>
+
+			<TouchableOpacity
+				style={[styles.aiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
+				activeOpacity={0.8}
+				onPress={openAIRoom}
+			>
+				<View style={[styles.aiIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.22)' : '#eef2ff' }]}>
+					<Icon source="robot-happy-outline" size={24} color="#6366f1" />
+				</View>
+				<View style={styles.aiContent}>
+					<Text style={[styles.aiTitle, { color: colors.text }]}>AI Assistant</Text>
+					<Text style={[styles.aiDescription, { color: colors.textSecondary }]}>
+						{aiRoom ? 'Open your assistant room' : 'Create a private AI assistant room'}
+					</Text>
+				</View>
+			</TouchableOpacity>
 		</>
 	);
 
@@ -137,6 +194,37 @@ const styles = StyleSheet.create({
 	},
 	listContent: {
 		paddingBottom: 100,
+	},
+	aiCard: {
+		marginHorizontal: 16,
+		marginTop: 12,
+		marginBottom: 4,
+		paddingHorizontal: 14,
+		paddingVertical: 14,
+		borderRadius: 18,
+		borderWidth: 1,
+		flexDirection: 'row',
+		alignItems: 'center',
+	},
+	aiIcon: {
+		width: 46,
+		height: 46,
+		borderRadius: 23,
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginRight: 12,
+	},
+	aiContent: {
+		flex: 1,
+	},
+	aiTitle: {
+		fontSize: 16,
+		fontWeight: '700',
+		marginBottom: 2,
+	},
+	aiDescription: {
+		fontSize: 13,
+		lineHeight: 18,
 	},
 	emptyContainer: {
 		flex: 1,

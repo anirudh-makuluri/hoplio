@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Backfill script: add vector embeddings to all existing chat messages.
- * Run from chatify-backend: node scripts/backfill-embeddings.js
+ * Run from hoplio-backend: node scripts/backfill-embeddings.js
  *
  * Requires: .env with Firebase credentials and HG_API_KEY (Hugging Face).
  */

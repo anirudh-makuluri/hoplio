@@ -1,8 +1,23 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+type ThemeColors = {
+	background: string;
+	surface: string;
+	surfaceElevated: string;
+	text: string;
+	textSecondary: string;
+	border: string;
+	primary: string;
+	primaryForeground: string;
+	accent: string;
+	destructive: string;
+	muted: string;
+	ring: string;
+};
+
 /** Blue theme palette aligned with website globals.css */
-const LIGHT = {
+const LIGHT: ThemeColors = {
   background: '#ffffff',
   surface: '#ffffff',
   surfaceElevated: '#f8fafc',
@@ -15,9 +30,9 @@ const LIGHT = {
   destructive: '#ef4444',
   muted: '#f1f5f9',
   ring: '#3b82f6',
-} as const;
+};
 
-const DARK = {
+const DARK: ThemeColors = {
   background: '#0f172a',
   surface: '#1e293b',
   surfaceElevated: '#334155',
@@ -30,9 +45,7 @@ const DARK = {
   destructive: '#dc2626',
   muted: '#1e293b',
   ring: '#3b82f6',
-} as const;
-
-export type ThemeColors = typeof LIGHT;
+};
 
 type ThemeContextType = {
   isDark: boolean;

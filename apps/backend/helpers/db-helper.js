@@ -33,8 +33,17 @@ module.exports = {
 			const devices = {};
 			devicesSnap.forEach((doc) => {
 				const data = doc.data() || {};
-				if (data.deviceId && data.publicKey) {
-					devices[data.deviceId] = data.publicKey;
+				if (data.deviceId && data.publicKey && data.signingPublicKey) {
+					devices[data.deviceId] = {
+						identityPublicKey: data.publicKey,
+						signingPublicKey: data.signingPublicKey,
+						identityFingerprint: data.fingerprint || '',
+						deviceName: data.deviceName || '',
+						version: data.version || 1,
+						updatedAt: data.updatedAt && typeof data.updatedAt.toDate === 'function'
+							? data.updatedAt.toDate().toISOString()
+							: new Date().toISOString()
+					};
 				}
 			});
 
@@ -58,10 +67,21 @@ module.exports = {
 
 		keysSnap.forEach((doc) => {
 			const data = doc.data() || {};
-			if (!data.userId || !data.deviceId || !data.publicKey) return;
+			if (!data.userId || !data.deviceId || !data.publicKey || !data.roomKeySignature || !data.signingPublicKey) return;
 			if (!membersSet.has(data.userId)) return;
 			if (!keys[data.userId]) keys[data.userId] = {};
-			keys[data.userId][data.deviceId] = data.publicKey;
+			keys[data.userId][data.deviceId] = {
+				roomPublicKey: data.publicKey,
+				roomKeySignature: data.roomKeySignature,
+				identityPublicKey: data.identityPublicKey || '',
+				signingPublicKey: data.signingPublicKey,
+				identityFingerprint: data.fingerprint || '',
+				deviceName: data.deviceName || '',
+				derivationVersion: data.derivationVersion || 1,
+				updatedAt: data.updatedAt && typeof data.updatedAt.toDate === 'function'
+					? data.updatedAt.toDate().toISOString()
+					: new Date().toISOString()
+			};
 		});
 
 		return keys;
@@ -147,9 +167,9 @@ module.exports = {
 					membersData: [
 						{
 							uid: 'ai-assistant',
-							name: 'Chatify AI',
+							name: 'Hoplio AI',
 							photo_url: 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff',
-							email: 'ai-assistant@chatify.com'
+							email: 'ai-assistant@hoplio.com'
 						}
 					]
 				})

@@ -1,4 +1,4 @@
-package com.arm8tron.chatify
+package com.arm8tron.hoplio
 
 import android.os.Build
 import android.os.Bundle

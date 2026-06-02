@@ -2,6 +2,9 @@ import { ChatMessage, ChatDate, GroupCreateRequest, GroupCreateResponse, GroupAd
 import { globals } from "../globals"
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { EncryptedData, RecipientEncryptedMessages } from './e2ee-types';
+import * as crypto from './crypto';
+import * as deviceManager from './device-manager';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -123,6 +126,64 @@ export function formatChatMessages(messages: (ChatDate | ChatMessage)[]) {
 	return formattedMessages;
 }
 
+export function decryptChatMessage(message: ChatMessage): ChatMessage {
+	if (!message.isEncrypted || !message.encrypted) {
+		return message;
+	}
+
+	try {
+		if (!crypto.isSodiumReady()) {
+			return {
+				...message,
+				chatInfo: message.chatInfo || 'Encrypted message',
+				decryptionError: 'Secure messaging is still loading',
+			};
+		}
+
+		const ownerUserId = deviceManager.getOwnerUserId();
+		const deviceId = deviceManager.getDeviceId();
+		const roomKeyPair = deviceManager.getRoomKeyPair(message.roomId);
+
+		if (!ownerUserId || !deviceId || !roomKeyPair) {
+			return {
+				...message,
+				chatInfo: 'Encrypted message unavailable on this device',
+				decryptionError: 'Missing device or room key',
+			};
+		}
+
+		let ciphertext: string | null = null;
+		const encryptedPayload = message.encrypted;
+
+		if (typeof encryptedPayload === 'object' && encryptedPayload && 'ciphertext' in encryptedPayload) {
+			ciphertext = (encryptedPayload as EncryptedData).ciphertext;
+		} else if (typeof encryptedPayload === 'object' && encryptedPayload) {
+			const recipientMap = encryptedPayload as RecipientEncryptedMessages;
+			ciphertext = recipientMap[ownerUserId]?.[deviceId]?.ciphertext ?? null;
+		}
+
+		if (!ciphertext) {
+			return {
+				...message,
+				chatInfo: 'Encrypted message unavailable on this device',
+				decryptionError: 'No encrypted payload for this device',
+			};
+		}
+
+		return {
+			...message,
+			chatInfo: crypto.decryptMessage(ciphertext, roomKeyPair),
+			decryptionError: undefined,
+		};
+	} catch (error) {
+		return {
+			...message,
+			chatInfo: 'Unable to decrypt message',
+			decryptionError: error instanceof Error ? error.message : 'Unknown decryption error',
+		};
+	}
+}
+
 
 function formatDateForChat(date: Date) {
 	const today = new Date();
@@ -198,26 +259,6 @@ export const createAIAssistantRoom = async (userUid: string): Promise<any> => {
 	return customFetch({
 		pathName: `users/${userUid}/ai-assistant/room`,
 		method: 'POST'
-	});
-};
-
-export const sendAIChatRequest = (socket: any, message: string, roomId: string): Promise<any> => {
-	return new Promise((resolve, reject) => {
-		if (!socket) {
-			reject(new Error('Socket not connected'));
-			return;
-		}
-
-		socket.emit('ai_chat_request', {
-			message,
-			roomId
-		}, (response: any) => {
-			if (response.success) {
-				resolve(response);
-			} else {
-				reject(new Error(response.error || 'AI request failed'));
-			}
-		});
 	});
 };
 

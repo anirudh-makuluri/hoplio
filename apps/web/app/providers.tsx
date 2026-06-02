@@ -48,7 +48,7 @@ export function Providers({ children }: { children: ReactNode }) {
 			let keyExists = false;
 			try {
 				const response = await e2eeApiModule.getIdentityKeyForDevice(userId, deviceId);
-				keyExists = !!response?.success && !!response?.publicKey;
+				keyExists = !!response?.success && !!response?.publicKey && !!response?.signingPublicKey;
 			} catch (error) {
 				if (error instanceof Response && error.status === 404) {
 					keyExists = false;

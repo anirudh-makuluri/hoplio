@@ -3,7 +3,6 @@ import { FlatList, Image, View, Alert, ScrollView, StyleSheet, TouchableOpacity 
 import {
 	Avatar,
 	Button,
-	Card,
 	Text,
 	TextInput,
 	Icon,
@@ -13,7 +12,6 @@ import {
 	Portal,
 	Dialog,
 	ProgressBar,
-	Chip,
 	Divider,
 } from 'react-native-paper';
 import { useUser } from '~/app/providers';
@@ -23,9 +21,7 @@ import {
 	sendMessageToServer,
 	loadChatHistory,
 	requestConversationSummaryAction,
-	analyzeMessageSentimentAction,
 	getSmartRepliesAction,
-	sendAIChatRequestAction,
 	loadOfflineMessagesForRoom,
 	syncPendingMessages,
 } from '~/redux/socketSlice';
@@ -43,6 +39,11 @@ import { uploadFile } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import { useToast } from '~/components/Toast';
 import GlassSurface from '~/components/GlassSurface';
+import {
+	useE2EEError,
+	useEncryptRoomMessage,
+	useFetchRoomMemberPublicKeys,
+} from '~/lib/hooks/useE2EE';
 
 export default function Room() {
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
@@ -54,6 +55,11 @@ export default function Room() {
 	const dispatch = useAppDispatch();
 	const { colors, isDark } = useAppTheme();
 	const { showToast } = useToast();
+	const e2eeError = useE2EEError();
+	const isAIRoom = activeRoom?.is_ai_room || activeChatRoomId.startsWith('ai-assistant-');
+	const { memberPublicKeys, fetch: fetchMemberKeys, loading: fetchingMemberKeys } =
+		useFetchRoomMemberPublicKeys(activeChatRoomId);
+	const { encrypt: encryptForRoom } = useEncryptRoomMessage(activeChatRoomId);
 
 	const { user, isOffline: userIsOffline } = useUser() || {};
 
@@ -64,16 +70,23 @@ export default function Room() {
 	const [moreMenuVisible, setMoreMenuVisible] = useState(false);
 	const [summaryDialogVisible, setSummaryDialogVisible] = useState(false);
 	const [summary, setSummary] = useState<string>('');
-	const [sentimentDialogVisible, setSentimentDialogVisible] = useState(false);
-	const [sentiment, setSentiment] = useState<string>('');
 	const [smartReplies, setSmartReplies] = useState<string[]>([]);
-	const [testMessage, setTestMessage] = useState('');
 	const [showSmartReplies, setShowSmartReplies] = useState(false);
 	const [showGroupManagement, setShowGroupManagement] = useState(false);
 	const [showGroupMembers, setShowGroupMembers] = useState(false);
 	const [showScheduleDialog, setShowScheduleDialog] = useState(false);
 	const [showScheduledMessages, setShowScheduledMessages] = useState(false);
 	const [showSemanticSearch, setShowSemanticSearch] = useState(false);
+	const [secureSendEnabled, setSecureSendEnabled] = useState(false);
+	const [encryptionStatus, setEncryptionStatus] = useState<'idle' | 'encrypting'>('idle');
+	const lastSmartReplyMessageIdRef = useRef<string | number | null>(null);
+	const isChatMessage = (message: ChatMessage | { isDate?: boolean }): message is ChatMessage => !message.isDate;
+	const hasEncryptedMessages = (activeRoom?.messages || []).some(
+		(message) => isChatMessage(message) && message.isEncrypted
+	);
+	const aiDisabledReason = hasEncryptedMessages
+		? 'AI features are unavailable for encrypted conversations.'
+		: null;
 
 	useEffect(() => {
 		if (activeChatRoomId && activeRoom) {
@@ -89,6 +102,64 @@ export default function Room() {
 			dispatch(syncPendingMessages());
 		}
 	}, [userIsOffline, isOffline]);
+
+	useEffect(() => {
+		if (!activeChatRoomId || isAIRoom || userIsOffline) {
+			return;
+		}
+
+		fetchMemberKeys().catch((error) => {
+			console.error('Failed to fetch room member keys:', error);
+		});
+	}, [activeChatRoomId, isAIRoom, userIsOffline, fetchMemberKeys]);
+
+	useEffect(() => {
+		if (isAIRoom || aiDisabledReason || !user) {
+			setShowSmartReplies(false);
+			setSmartReplies([]);
+			lastSmartReplyMessageIdRef.current = null;
+			return;
+		}
+
+		const latestOtherMessage = [...(activeRoom?.messages || [])]
+			.filter(isChatMessage)
+			.reverse()
+			.find(
+				(message) =>
+					message.type === 'text' &&
+					message.userUid !== user.uid &&
+					message.userUid !== 'ai-assistant' &&
+					!message.isEncrypted &&
+					!message.decryptionError
+			);
+
+		if (!latestOtherMessage) {
+			setShowSmartReplies(false);
+			setSmartReplies([]);
+			lastSmartReplyMessageIdRef.current = null;
+			return;
+		}
+
+		if (lastSmartReplyMessageIdRef.current === latestOtherMessage.id) {
+			return;
+		}
+
+		lastSmartReplyMessageIdRef.current = latestOtherMessage.id;
+		setShowSmartReplies(true);
+		setSmartReplies([]);
+
+		Promise.resolve(dispatch(getSmartRepliesAction(latestOtherMessage.chatInfo, activeChatRoomId)) as any)
+			.then((response: any) => {
+				if (response?.success && Array.isArray(response.replies)) {
+					setSmartReplies(response.replies);
+				} else {
+					setShowSmartReplies(false);
+				}
+			})
+			.catch(() => {
+				setShowSmartReplies(false);
+			});
+	}, [activeRoom?.messages, activeChatRoomId, aiDisabledReason, dispatch, isAIRoom, user]);
 
 	if (activeChatRoomId == '' || activeRoom == null) {
 		return null;
@@ -154,6 +225,44 @@ export default function Room() {
 		if (input.trim() == '' || input == null) return;
 		if (!user || activeChatRoomId == '') return;
 
+		if (secureSendEnabled) {
+			if (!memberPublicKeys || Object.keys(memberPublicKeys).length === 0) {
+				showToast({ message: 'Still loading member keys for secure messaging.', type: 'info' });
+				return;
+			}
+
+			try {
+				setEncryptionStatus('encrypting');
+				const encryptedForRecipients = encryptForRoom(input);
+				const chatMessage: ChatMessage = {
+					id: generateId(),
+					roomId: activeChatRoomId,
+					type: 'text',
+					chatInfo: '',
+					userUid: user.uid,
+					userName: user.name,
+					userPhoto: user.photo_url,
+					time: new Date(),
+					isMsgEdited: false,
+					isMsgSaved: false,
+					fileName: '',
+					isEncrypted: true,
+					encrypted: encryptedForRecipients,
+				};
+
+				dispatch(sendMessageToServer(chatMessage));
+				setInput('');
+				setShowSmartReplies(false);
+				if (textInputRef.current) textInputRef.current.blur();
+			} catch (error) {
+				console.error('Failed to encrypt mobile message:', error);
+				showToast({ message: 'Unable to encrypt this message right now.', type: 'error' });
+			} finally {
+				setEncryptionStatus('idle');
+			}
+			return;
+		}
+
 		const chatMessage: ChatMessage = {
 			id: generateId(),
 			roomId: activeChatRoomId,
@@ -179,6 +288,18 @@ export default function Room() {
 		dispatch(setActiveRoomId(''));
 	}
 
+	async function handleRotateKeys() {
+		try {
+			import('~/lib/device-manager').then((deviceManager) => {
+				deviceManager.rotateSigningKeyPair();
+				showToast({ message: 'E2EE keys rotated successfully!', type: 'success' });
+			});
+		} catch (error) {
+			console.error('Failed to rotate keys:', error);
+			showToast({ message: 'Failed to rotate E2EE keys', type: 'error' });
+		}
+	}
+
 	const handleLoadMore = () => {
 		if (!activeRoom.hasMoreMessages || activeRoom.isLoadingMore) return;
 		dispatch(setLoadingMore({ roomId: activeChatRoomId, isLoading: true }));
@@ -188,6 +309,10 @@ export default function Room() {
 	// AI Functions
 	const handleSummarizeConversation = async () => {
 		setMoreMenuVisible(false);
+		if (aiDisabledReason) {
+			showToast({ message: aiDisabledReason, type: 'info' });
+			return;
+		}
 		try {
 			const response = (await dispatch(requestConversationSummaryAction(activeChatRoomId))) as any;
 			if (response.success && response.summary) {
@@ -196,76 +321,6 @@ export default function Room() {
 			}
 		} catch (error) {
 			Alert.alert('Error', 'Failed to generate conversation summary');
-		}
-	};
-
-	const handleAnalyzeSentiment = () => {
-		setMoreMenuVisible(false);
-		const messages = activeRoom.messages;
-		const textMessages = messages.filter((msg) => !msg.isDate && msg.type === 'text');
-		if (textMessages.length === 0) {
-			Alert.alert('No Messages', 'No text messages found to analyze');
-			return;
-		}
-		const lastMessage = textMessages[textMessages.length - 1];
-		setTestMessage(lastMessage.chatInfo || '');
-		handleSentimentAnalysis();
-	};
-
-	const handleGetSmartReplies = () => {
-		setMoreMenuVisible(false);
-		const messages = activeRoom.messages;
-		const otherUserMessages = messages.filter(
-			(msg) => !msg.isDate && msg.type === 'text' && msg.userUid !== user?.uid
-		);
-		if (otherUserMessages.length === 0) {
-			Alert.alert('No Messages', 'No messages from other users found to generate smart replies');
-			return;
-		}
-		const latestOtherMessage = otherUserMessages[otherUserMessages.length - 1];
-		setTestMessage(latestOtherMessage.chatInfo || '');
-		handleSmartRepliesRequestInline();
-	};
-
-	const handleSentimentAnalysis = async () => {
-		if (!testMessage.trim()) {
-			Alert.alert('Error', 'Please enter a message to analyze');
-			return;
-		}
-		setSentimentDialogVisible(true);
-		setSentiment('');
-		try {
-			const response = (await dispatch(analyzeMessageSentimentAction(testMessage))) as any;
-			if (response.success && response.sentiment) {
-				setSentiment(response.sentiment);
-			} else {
-				Alert.alert('Error', 'Failed to analyze message sentiment');
-				setSentimentDialogVisible(false);
-			}
-		} catch (error) {
-			Alert.alert('Error', 'Failed to analyze message sentiment');
-			setSentimentDialogVisible(false);
-		}
-	};
-
-	const handleSmartRepliesRequestInline = async () => {
-		if (!testMessage.trim()) {
-			Alert.alert('Error', 'Please enter a message to get smart replies');
-			return;
-		}
-		setShowSmartReplies(true);
-		setSmartReplies([]);
-		try {
-			const response = (await dispatch(getSmartRepliesAction(testMessage, activeChatRoomId))) as any;
-			if (response.success && response.replies) {
-				setSmartReplies(response.replies);
-			} else {
-				Alert.alert('Error', 'Failed to get smart replies');
-				setShowSmartReplies(false);
-			}
-		} catch (error) {
-			Alert.alert('Error', 'Failed to get smart replies');
-			setShowSmartReplies(false);
 		}
 	};
 
@@ -414,6 +469,14 @@ export default function Room() {
 									iconColor={colors.text}
 									onPress={() => showToast({ message: 'Video call coming soon!', type: 'coming-soon' })}
 								/>
+								{e2eeError && (
+									<IconButton
+										icon="refresh"
+										size={22}
+										iconColor="#f59e0b"
+										onPress={handleRotateKeys}
+									/>
+								)}
 								<Menu
 									visible={moreMenuVisible}
 									onDismiss={() => setMoreMenuVisible(false)}
@@ -465,11 +528,17 @@ export default function Room() {
 								title="Schedule Message"
 								leadingIcon="clock-plus"
 							/>
-							<Divider />
-							<Text style={[styles.menuSectionTitle, { color: colors.textSecondary }]}>AI Features</Text>
-							<Menu.Item onPress={handleSummarizeConversation} title="Summarize Chat" leadingIcon="text-box-outline" />
-							<Menu.Item onPress={handleAnalyzeSentiment} title="Analyze Sentiment" leadingIcon="emoticon-outline" />
-							<Menu.Item onPress={handleGetSmartReplies} title="Smart Replies" leadingIcon="lightbulb-outline" />
+							{!isAIRoom && (
+								<>
+									<Divider />
+									<Text style={[styles.menuSectionTitle, { color: colors.textSecondary }]}>AI Features</Text>
+									{aiDisabledReason ? (
+										<Text style={[styles.menuHint, { color: colors.textSecondary }]}>{aiDisabledReason}</Text>
+									) : (
+										<Menu.Item onPress={handleSummarizeConversation} title="Summarize Chat" leadingIcon="text-box-outline" />
+									)}
+								</>
+							)}
 								</Menu>
 							</View>
 						</View>
@@ -495,7 +564,7 @@ export default function Room() {
 				)}
 
 				{/* Smart Replies */}
-				{showSmartReplies && (
+				{showSmartReplies && !aiDisabledReason && (
 					<View style={[styles.smartRepliesBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
 						<View style={styles.smartRepliesHeader}>
 							<Text style={[styles.smartRepliesTitle, { color: colors.textSecondary }]}>Smart Replies</Text>
@@ -522,6 +591,29 @@ export default function Room() {
 								<Text style={[styles.loadingText, { color: colors.textSecondary }]}>Generating replies...</Text>
 							</View>
 						)}
+					</View>
+				)}
+
+				{secureSendEnabled && (
+					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+						<Icon source="lock-outline" size={16} color={colors.primary} />
+						<Text style={[styles.infoText, { color: colors.textSecondary }]}>
+							Your next text message will be encrypted on this device.
+						</Text>
+					</View>
+				)}
+
+				{aiDisabledReason && !isAIRoom && (
+					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+						<Icon source="shield-lock-outline" size={16} color={colors.primary} />
+						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{aiDisabledReason}</Text>
+					</View>
+				)}
+
+				{e2eeError && (
+					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+						<Icon source="alert-circle-outline" size={16} color={colors.destructive} />
+						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{e2eeError}</Text>
 					</View>
 				)}
 
@@ -581,15 +673,24 @@ export default function Room() {
 									onPress={takePhoto}
 									disabled={uploading || userIsOffline}
 								/>
+								{!isAIRoom && memberPublicKeys && Object.keys(memberPublicKeys).length > 0 && (
+									<IconButton
+										icon={secureSendEnabled ? 'lock' : 'lock-open-variant-outline'}
+										size={20}
+										iconColor={secureSendEnabled ? colors.primary : colors.textSecondary}
+										onPress={() => setSecureSendEnabled((current) => !current)}
+										disabled={uploading || userIsOffline || fetchingMemberKeys}
+									/>
+								)}
 							</View>
 
 							<IconButton
-								icon="send"
+								icon={secureSendEnabled ? 'shield-lock-outline' : 'send'}
 								size={24}
 								iconColor="#fff"
 								style={[styles.sendButton, { backgroundColor: input.trim() ? colors.primary : colors.textSecondary }]}
 								onPress={sendMessage}
-								disabled={uploading || !input.trim()}
+								disabled={uploading || !input.trim() || encryptionStatus !== 'idle' || fetchingMemberKeys}
 							/>
 						</View>
 					</GlassSurface>
@@ -605,35 +706,6 @@ export default function Room() {
 					</Dialog.Content>
 					<Dialog.Actions>
 						<Button onPress={() => setSummaryDialogVisible(false)} textColor={colors.primary}>
-							Close
-						</Button>
-					</Dialog.Actions>
-				</Dialog>
-
-				<Dialog visible={sentimentDialogVisible} onDismiss={() => setSentimentDialogVisible(false)} style={{ backgroundColor: colors.surface }}>
-					<Dialog.Title style={{ color: colors.text }}>Sentiment Analysis</Dialog.Title>
-					<Dialog.Content>
-						<Text style={{ color: colors.textSecondary, marginBottom: 12 }}>Analyzing: "{testMessage}"</Text>
-						{sentiment ? (
-							<View style={[styles.sentimentResult, { backgroundColor: isDark ? colors.muted : '#f1f5f9' }]}>
-								<Icon
-									source={sentiment === 'positive' ? 'emoticon-happy' : sentiment === 'negative' ? 'emoticon-sad' : 'emoticon-neutral'}
-									size={28}
-									color={sentiment === 'positive' ? '#10b981' : sentiment === 'negative' ? '#ef4444' : '#f59e0b'}
-								/>
-								<Text style={[styles.sentimentText, { color: colors.text }]}>
-									{sentiment.charAt(0).toUpperCase() + sentiment.slice(1)}
-								</Text>
-							</View>
-						) : (
-							<View style={styles.smartRepliesLoading}>
-								<ActivityIndicator size="small" color={colors.primary} />
-								<Text style={[styles.loadingText, { color: colors.textSecondary }]}>Analyzing...</Text>
-							</View>
-						)}
-					</Dialog.Content>
-					<Dialog.Actions>
-						<Button onPress={() => setSentimentDialogVisible(false)} textColor={colors.primary}>
 							Close
 						</Button>
 					</Dialog.Actions>
@@ -736,6 +808,12 @@ const styles = StyleSheet.create({
 		paddingTop: 8,
 		paddingBottom: 4,
 	},
+	menuHint: {
+		fontSize: 12,
+		paddingHorizontal: 16,
+		paddingBottom: 10,
+		lineHeight: 18,
+	},
 	messageList: {
 		paddingHorizontal: 8,
 		paddingBottom: 8,
@@ -795,6 +873,19 @@ const styles = StyleSheet.create({
 	loadingText: {
 		fontSize: 13,
 	},
+	infoBar: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		paddingHorizontal: 16,
+		paddingVertical: 10,
+		borderTopWidth: 1,
+		gap: 8,
+	},
+	infoText: {
+		flex: 1,
+		fontSize: 13,
+		lineHeight: 18,
+	},
 	offlineBar: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -841,17 +932,6 @@ const styles = StyleSheet.create({
 	sendButton: {
 		margin: 0,
 		borderRadius: 24,
-	},
-	sentimentResult: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		padding: 16,
-		borderRadius: 12,
-		gap: 12,
-	},
-	sentimentText: {
-		fontSize: 18,
-		fontWeight: '600',
 	},
 	memberItem: {
 		paddingVertical: 12,

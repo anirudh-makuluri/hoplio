@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/chatify-rne.iml" filepath="$PROJECT_DIR$/.idea/chatify-rne.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/hoplio.iml" filepath="$PROJECT_DIR$/.idea/hoplio.iml" />
     </modules>
   </component>
 </project>

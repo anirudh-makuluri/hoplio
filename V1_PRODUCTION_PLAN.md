@@ -1,6 +1,6 @@
-# Chatify V1 Production Plan
+# Hoplio V1 Production Plan
 
-This document turns the current Chatify monorepo into a concrete V1 execution plan.
+This document turns the current Hoplio monorepo into a concrete V1 execution plan.
 
 ## V1 Decisions
 
@@ -197,24 +197,26 @@ Goal: mobile reaches the same privacy and AI baseline as web.
 
 #### Mobile E2EE
 
-- [ ] Port web E2EE architecture to mobile
-- [ ] Generate and persist mobile device identity keys
-- [ ] Register mobile identity keys with backend
-- [ ] Generate and persist per-room mobile keys
-- [ ] Fetch room member public keys on mobile
-- [ ] Encrypt outbound mobile messages
-- [ ] Decrypt inbound mobile messages
-- [ ] Decrypt paginated chat history on mobile
+- [x] Port web E2EE architecture to mobile
+- [x] Generate and persist mobile device identity keys
+- [x] Register mobile identity keys with backend
+- [x] Generate and persist per-room mobile keys
+- [x] Fetch room member public keys on mobile
+- [x] Encrypt outbound mobile messages
+- [x] Decrypt inbound mobile messages
+- [x] Decrypt paginated chat history on mobile
 - [ ] Handle missing-key and key-rotation states gracefully
-- [ ] Add E2EE initialization/loading UX
+- [x] Add E2EE initialization/loading UX
 
 #### Mobile AI
 
-- [ ] Add AI assistant room creation/entry flow in mobile
-- [ ] Ensure mobile uses only backend-supported AI events
-- [ ] Match web AI summarize behavior
-- [ ] Match web smart replies behavior
-- [ ] Decide and document AI behavior for encrypted conversations
+- [x] Add AI assistant room creation/entry flow in mobile
+- [x] Ensure mobile uses only backend-supported AI events
+- [x] Match web AI summarize behavior
+- [x] Match web smart replies behavior
+- [x] Decide and document AI behavior for encrypted conversations
+
+AI behavior for encrypted conversations: mobile disables AI summaries and smart replies when encrypted messages are present in the room.
 
 #### Backend
 
@@ -225,6 +227,7 @@ Goal: mobile reaches the same privacy and AI baseline as web.
 
 - Mobile can send and read encrypted messages in real rooms
 - Mobile AI behavior matches web V1 behavior
+- Room device keys are signed per device and verified against persisted device fingerprints before use
 
 ### Milestone 5 - Client Parity Cleanup and UX Completion
 

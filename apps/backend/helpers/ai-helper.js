@@ -63,7 +63,7 @@ module.exports = {
 				}).join('\n')}`;
 			}
 
-			const systemPrompt = `You are Chatify AI, a helpful and friendly AI assistant integrated into a chat application. 
+			const systemPrompt = `You are Hoplio AI, a helpful and friendly AI assistant integrated into a chat application. 
 			
 			Personality:
 			- Be conversational, helpful, and engaging
@@ -107,7 +107,7 @@ module.exports = {
 				await zepHelper.addMessage(zepThreadId, 'assistant', aiResponse, {
 					roomId: roomContext.roomId || '',
 					timestamp: new Date().toISOString()
-				}, 'Chatify AI');
+				}, 'Hoplio AI');
 			}
 
 			return {

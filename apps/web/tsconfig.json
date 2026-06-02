@@ -1,5 +1,5 @@
 {
-  "extends": "@chatify/tsconfig/nextjs.json",
+  "extends": "@hoplio/tsconfig/nextjs.json",
   "compilerOptions": {
     "paths": {
       "@/*": [

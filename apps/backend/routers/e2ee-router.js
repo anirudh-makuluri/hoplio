@@ -1,7 +1,9 @@
 const express = require('express');
+const crypto = require('crypto');
 const config = require('../config');
 const logger = require('../logger');
 const authHelper = require('../helpers/auth-helper');
+const { computeDeviceFingerprint, deriveStoredOrComputedFingerprint } = require('../helpers/e2ee-fingerprint');
 
 const router = express.Router();
 
@@ -77,6 +79,46 @@ function isValidDeviceId(value) {
 	return /^[A-Za-z0-9._:-]+$/.test(trimmed);
 }
 
+function base64ToBuffer(value) {
+	return Buffer.from(value.trim(), 'base64');
+}
+
+function normalizeBase64(value) {
+	return base64ToBuffer(value).toString('base64');
+}
+
+function buildRoomKeySigningPayload({ roomId, userId, deviceId, roomPublicKey }) {
+	return `${roomId}:${userId}:${deviceId}:${normalizeBase64(roomPublicKey)}`;
+}
+
+function createEd25519PublicKey(signingPublicKey) {
+	const rawKey = base64ToBuffer(signingPublicKey);
+	if (rawKey.length !== 32) {
+		throw new Error('Invalid signing public key length');
+	}
+
+	const spkiPrefix = Buffer.from('302a300506032b6570032100', 'hex');
+	return crypto.createPublicKey({
+		key: Buffer.concat([spkiPrefix, rawKey]),
+		format: 'der',
+		type: 'spki'
+	});
+}
+
+function verifyDetachedSignature(message, signatureBase64, signingPublicKey) {
+	try {
+		const key = createEd25519PublicKey(signingPublicKey);
+		return crypto.verify(
+			null,
+			Buffer.from(message, 'utf8'),
+			key,
+			base64ToBuffer(signatureBase64)
+		);
+	} catch (_error) {
+		return false;
+	}
+}
+
 function isValidEntityId(value) {
 	return require('../utils').isValidEntityId(value);
 }
@@ -103,7 +145,7 @@ function isRoomAdmin(roomData, userId) {
 
 router.post('/auth/setup-keys', authHelper.requireSession, async (req, res) => {
 	try {
-		const { userId, identityPublicKey, deviceId, deviceName } = req.body || {};
+		const { userId, identityPublicKey, signingPublicKey, deviceId, deviceName } = req.body || {};
 		if (!userId || typeof userId !== 'string') {
 			return res.status(400).json({ error: 'userId is required' });
 		}
@@ -115,6 +157,9 @@ router.post('/auth/setup-keys', authHelper.requireSession, async (req, res) => {
 		}
 		if (!isValidBase64Key(identityPublicKey)) {
 			return res.status(400).json({ error: 'Invalid key format' });
+		}
+		if (!isValidBase64Key(signingPublicKey)) {
+			return res.status(400).json({ error: 'Invalid signing key format' });
 		}
 
 		const userRef = config.firebase.db.collection('auth_users').doc(userId);
@@ -133,7 +178,9 @@ router.post('/auth/setup-keys', authHelper.requireSession, async (req, res) => {
 			userId,
 			deviceId,
 			deviceName: typeof deviceName === 'string' ? deviceName.trim() : '',
-			publicKey: identityPublicKey,
+			publicKey: normalizeBase64(identityPublicKey),
+			signingPublicKey: normalizeBase64(signingPublicKey),
+			fingerprint: computeDeviceFingerprint(identityPublicKey, signingPublicKey),
 			version,
 			createdAt,
 			updatedAt: config.firebase.admin.firestore.FieldValue.serverTimestamp()
@@ -152,7 +199,7 @@ router.post('/auth/setup-keys', authHelper.requireSession, async (req, res) => {
 router.post('/rooms/:roomId/members/add-key', authHelper.requireSession, async (req, res) => {
 	try {
 		const { roomId } = req.params;
-		const { userId, roomPublicKey, deviceId, deviceName } = req.body || {};
+		const { userId, roomPublicKey, roomKeySignature, deviceId, deviceName } = req.body || {};
 
 		if (!roomId) return res.status(400).json({ error: 'roomId is required' });
 		if (!isValidEntityId(roomId)) return res.status(400).json({ error: 'Invalid roomId' });
@@ -164,6 +211,9 @@ router.post('/rooms/:roomId/members/add-key', authHelper.requireSession, async (
 		}
 		if (!isValidBase64Key(roomPublicKey)) {
 			return res.status(400).json({ error: 'Invalid key format' });
+		}
+		if (!isValidBase64Payload(roomKeySignature)) {
+			return res.status(400).json({ error: 'Invalid room key signature format' });
 		}
 
 		const roomInfo = await getRoomInfo(roomId);
@@ -189,6 +239,23 @@ router.post('/rooms/:roomId/members/add-key', authHelper.requireSession, async (
 			return res.status(400).json({ error: 'User identity key for device not found' });
 		}
 
+		const identityDevice = identityDeviceSnap.data() || {};
+		const signingPublicKey = identityDevice.signingPublicKey;
+		if (!isValidBase64Key(signingPublicKey)) {
+			return res.status(400).json({ error: 'Device signing key not found' });
+		}
+
+		const signaturePayload = buildRoomKeySigningPayload({
+			roomId,
+			userId,
+			deviceId,
+			roomPublicKey
+		});
+
+		if (!verifyDetachedSignature(signaturePayload, roomKeySignature, signingPublicKey)) {
+			return res.status(400).json({ error: 'Invalid room key signature' });
+		}
+
 		const keyDocId = `${userId}_${deviceId}`;
 		const deviceRef = roomRef.collection('keys').doc(keyDocId);
 		const existingDeviceSnap = await deviceRef.get();
@@ -201,7 +268,11 @@ router.post('/rooms/:roomId/members/add-key', authHelper.requireSession, async (
 			roomId,
 			deviceId,
 			deviceName: typeof deviceName === 'string' ? deviceName.trim() : '',
-			publicKey: roomPublicKey,
+			publicKey: normalizeBase64(roomPublicKey),
+			roomKeySignature: normalizeBase64(roomKeySignature),
+			identityPublicKey: identityDevice.publicKey,
+			signingPublicKey,
+			fingerprint: computeDeviceFingerprint(identityDevice.publicKey, signingPublicKey),
 			derivationVersion,
 			createdAt,
 			updatedAt: config.firebase.admin.firestore.FieldValue.serverTimestamp()
@@ -243,10 +314,26 @@ router.get('/rooms/:roomId/members/public-keys', authHelper.requireSession, asyn
 
 		keysSnap.forEach((doc) => {
 			const data = doc.data() || {};
-			if (!data.userId || !data.deviceId || !data.publicKey) return;
+			if (!data.userId || !data.deviceId || !data.publicKey || !data.signingPublicKey || !data.roomKeySignature) return;
 			if (!activeSet.has(data.userId)) return;
 			if (!members[data.userId]) members[data.userId] = {};
-			members[data.userId][data.deviceId] = data.publicKey;
+			members[data.userId][data.deviceId] = {
+				roomPublicKey: data.publicKey,
+				roomKeySignature: data.roomKeySignature,
+				identityPublicKey: data.identityPublicKey || '',
+				signingPublicKey: data.signingPublicKey,
+				identityFingerprint: deriveStoredOrComputedFingerprint(
+					data.identityPublicKey,
+					data.signingPublicKey,
+					data.fingerprint
+				),
+				deviceName: data.deviceName || '',
+				version: data.version || 1,
+				derivationVersion: data.derivationVersion || 1,
+				updatedAt: data.updatedAt && typeof data.updatedAt.toDate === 'function'
+					? data.updatedAt.toDate().toISOString()
+					: new Date().toISOString()
+			};
 		});
 
 		const response = {
@@ -296,6 +383,12 @@ router.get('/users/:userId/identity-key', async (req, res) => {
 				userId,
 				deviceId,
 				publicKey: data.publicKey,
+				signingPublicKey: data.signingPublicKey,
+				fingerprint: deriveStoredOrComputedFingerprint(
+					data.publicKey,
+					data.signingPublicKey,
+					data.fingerprint
+				),
 				version: data.version || 1,
 				deviceName: data.deviceName || '',
 				updatedAt
@@ -321,6 +414,12 @@ router.get('/users/:userId/identity-key', async (req, res) => {
 			if (data.deviceId && data.publicKey) {
 				devices[data.deviceId] = {
 					publicKey: data.publicKey,
+					signingPublicKey: data.signingPublicKey,
+					fingerprint: deriveStoredOrComputedFingerprint(
+						data.publicKey,
+						data.signingPublicKey,
+						data.fingerprint
+					),
 					version: data.version || 1,
 					deviceName: data.deviceName || '',
 					updatedAt: data.updatedAt && typeof data.updatedAt.toDate === 'function'
@@ -404,7 +503,7 @@ router.delete('/rooms/:roomId/members/:userId/key', authHelper.requireSession, a
 router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req, res) => {
 	try {
 		const { userId } = req.params;
-		const { newIdentityPublicKey, roomKeys, deviceId, deviceName } = req.body || {};
+		const { newIdentityPublicKey, newSigningPublicKey, roomKeys, roomKeySignatures, deviceId, deviceName } = req.body || {};
 
 		if (!userId) return res.status(400).json({ error: 'userId is required' });
 		if (req.uid !== userId) return res.status(403).json({ error: 'Forbidden' });
@@ -414,9 +513,15 @@ router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req,
 		if (!isValidBase64Key(newIdentityPublicKey)) {
 			return res.status(400).json({ error: 'Invalid key format' });
 		}
+		if (!isValidBase64Key(newSigningPublicKey)) {
+			return res.status(400).json({ error: 'Invalid signing key format' });
+		}
 
 		if (roomKeys && typeof roomKeys !== 'object') {
 			return res.status(400).json({ error: 'roomKeys must be an object' });
+		}
+		if (roomKeySignatures && typeof roomKeySignatures !== 'object') {
+			return res.status(400).json({ error: 'roomKeySignatures must be an object' });
 		}
 
 		const userRef = config.firebase.db.collection('auth_users').doc(userId);
@@ -436,7 +541,9 @@ router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req,
 			userId,
 			deviceId,
 			deviceName: typeof deviceName === 'string' ? deviceName.trim() : (deviceSnap.data()?.deviceName || ''),
-			publicKey: newIdentityPublicKey,
+			publicKey: normalizeBase64(newIdentityPublicKey),
+			signingPublicKey: normalizeBase64(newSigningPublicKey),
+			fingerprint: computeDeviceFingerprint(newIdentityPublicKey, newSigningPublicKey),
 			version: nextVersion,
 			updatedAt: config.firebase.admin.firestore.FieldValue.serverTimestamp()
 		}, { merge: true });
@@ -445,6 +552,10 @@ router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req,
 			for (const [roomId, roomPublicKey] of Object.entries(roomKeys)) {
 				if (!isValidBase64Key(roomPublicKey)) {
 					return res.status(400).json({ error: `Invalid key format for room ${roomId}` });
+				}
+				const roomKeySignature = roomKeySignatures?.[roomId];
+				if (!isValidBase64Payload(roomKeySignature)) {
+					return res.status(400).json({ error: `Invalid room key signature for room ${roomId}` });
 				}
 
 				const roomInfo = await getRoomInfo(roomId);
@@ -455,6 +566,17 @@ router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req,
 				const { roomData } = roomInfo;
 				if (!isRoomMember(roomData, userId)) {
 					return res.status(403).json({ error: `Not a member of room ${roomId}` });
+				}
+
+				const signaturePayload = buildRoomKeySigningPayload({
+					roomId,
+					userId,
+					deviceId,
+					roomPublicKey
+				});
+
+				if (!verifyDetachedSignature(signaturePayload, roomKeySignature, newSigningPublicKey)) {
+					return res.status(400).json({ error: `Invalid room key signature for room ${roomId}` });
 				}
 
 				const keyDocId = `${userId}_${deviceId}`;
@@ -473,7 +595,11 @@ router.post('/users/:userId/rotate-keys', authHelper.requireSession, async (req,
 					roomId,
 					deviceId,
 					deviceName: typeof deviceName === 'string' ? deviceName.trim() : (existingKeySnap.data()?.deviceName || ''),
-					publicKey: roomPublicKey,
+					publicKey: normalizeBase64(roomPublicKey),
+					roomKeySignature: normalizeBase64(roomKeySignature),
+					identityPublicKey: normalizeBase64(newIdentityPublicKey),
+					signingPublicKey: normalizeBase64(newSigningPublicKey),
+					fingerprint: computeDeviceFingerprint(newIdentityPublicKey, newSigningPublicKey),
 					derivationVersion,
 					updatedAt: config.firebase.admin.firestore.FieldValue.serverTimestamp()
 				}, { merge: true });

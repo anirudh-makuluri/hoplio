@@ -1,10 +1,10 @@
-# Chatify Privacy Policy
+# Hoplio Privacy Policy
 
 **Last updated:** [02-03-2026]
 
 ## Overview
 
-Chatify ("we", "our", or "the app") is a messaging application. This policy describes how we handle information and which permissions the app uses on your device.
+Hoplio ("we", "our", or "the app") is a messaging application. This policy describes how we handle information and which permissions the app uses on your device.
 
 ## Permissions We Use
 
@@ -41,7 +41,7 @@ Their privacy policies apply to data they process on our behalf.
 
 ## Your Choices
 
-- You can turn off camera (and other) permissions in your device **Settings → Apps → Chatify → Permissions**.
+- You can turn off camera (and other) permissions in your device **Settings → Apps → Hoplio → Permissions**.
 - You can delete your account or request data deletion by contacting us (see below).
 
 ## Changes

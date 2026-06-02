@@ -128,7 +128,7 @@ export default function AIFeatures({ input, setInput, onAISend, lastMessage }: A
 					variant="outline"
 					size="sm"
 					onClick={handleSummarize}
-					className="group border-blue-500/50 hover:bg-gradient-to-r hover:from-blue-500 hover:to-cyan-500 hover:text-white transition-all duration-300"
+					className="hidden group border-blue-500/50 hover:bg-gradient-to-r hover:from-blue-500 hover:to-cyan-500 hover:text-white transition-all duration-300"
 					title="Summarize conversation"
 				>
 					<MessageSquare size={16} className="mr-1" />

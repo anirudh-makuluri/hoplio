@@ -2,9 +2,9 @@ import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from '@reduxjs/toolkit'
 import io, { Socket } from 'socket.io-client';
 import { AppThunk } from "./store";
-import { ChatMessage, TAuthUser, TUser, AIResponse, AISummaryResponse, AISentimentResponse, AISmartRepliesResponse, PresenceUpdate, ScheduledMessage, CreateScheduledMessageRequest, UpdateScheduledMessageRequest, ScheduledMessageResponse, ScheduledMessagesListResponse } from "../lib/types";
+import { ChatMessage, TUser, CreateScheduledMessageRequest, UpdateScheduledMessageRequest, ScheduledMessageResponse, ScheduledMessagesListResponse } from "../lib/types";
 import { globals } from "../globals";
-import { sendAIChatRequest, requestConversationSummary, analyzeMessageSentiment, getSmartReplies } from "../lib/utils";
+import { requestConversationSummary, getSmartReplies } from "../lib/utils";
 import { offlineStorage } from '../lib/offlineStorage';
 import { addMessage, loadOfflineMessages } from './chatSlice';
 import { setScheduledMessages, updateScheduledMessage as updateScheduledMessageAction, removeScheduledMessage } from './scheduledMessageSlice';
@@ -82,7 +82,9 @@ export const sendMessageToServer = (message: ChatMessage): AppThunk => async (di
 			chatInfo: message.chatInfo,
 			fileName: message.fileName || '',
 			isMsgEdited: message.isMsgEdited || false,
-			isMsgSaved: message.isMsgSaved || false
+			isMsgSaved: message.isMsgSaved || false,
+			isEncrypted: message.isEncrypted || false,
+			encrypted: message.encrypted || ''
 		};
 		socket.emit('chat_event_client_to_server', backendMessage);
 	} else {
@@ -182,19 +184,6 @@ export const addReaction = (params: {
 	});
 };
 
-// AI Assistant WebSocket actions
-export const sendAIChatRequestAction = (message: string, roomId: string): AppThunk => async (dispatch, getState) => {
-	const { socket } = getState().socket;
-	if (!socket) return;
-
-	try {
-		const response = await sendAIChatRequest(socket, message, roomId);
-		console.log('AI Chat Request successful:', response);
-	} catch (error) {
-		console.error('AI Chat Request failed:', error);
-	}
-};
-
 export const requestConversationSummaryAction = (roomId: string): AppThunk => async (dispatch, getState) => {
 	const { socket } = getState().socket;
 	if (!socket) return;
@@ -205,20 +194,6 @@ export const requestConversationSummaryAction = (roomId: string): AppThunk => as
 		return response;
 	} catch (error) {
 		console.error('Conversation Summary failed:', error);
-		throw error;
-	}
-};
-
-export const analyzeMessageSentimentAction = (message: string): AppThunk => async (dispatch, getState) => {
-	const { socket } = getState().socket;
-	if (!socket) return;
-
-	try {
-		const response = await analyzeMessageSentiment(socket, message);
-		console.log('Sentiment Analysis:', response);
-		return response;
-	} catch (error) {
-		console.error('Sentiment Analysis failed:', error);
 		throw error;
 	}
 };

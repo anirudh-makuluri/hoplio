@@ -33,7 +33,7 @@ export default function Index() {
 				<View style={styles.logoRing}>
 					<Text style={styles.logoEmoji}>💬</Text>
 				</View>
-				<Text style={styles.title}>Chatify</Text>
+				<Text style={styles.title}>Hoplio</Text>
 				<Text style={styles.subtitle}>
 					Connect, collaborate, and chat effortlessly with your friends and teams.
 				</Text>
