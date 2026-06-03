@@ -233,10 +233,11 @@ export default function ChatBubble({
 									{/* Text message */}
 									{message.type === 'text' && (
 										<Text style={[styles.messageText, { color: isSelf ? '#fff' : colors.text }]}>
-										{message.isEncrypted && !message.chatInfo 
-											? 'Encrypted message - Unable to decrypt'
-											: message.chatInfo
-										}
+											{message.isEncrypted && !message.chatInfo
+												? 'Encrypted message - Unable to decrypt'
+												: message.chatInfo}
+										</Text>
+									)}
 									{chatMessage.isEncrypted && (
 										<Text
 											style={[

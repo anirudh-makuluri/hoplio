@@ -1,17 +1,19 @@
 import React, { useState } from 'react'
-import { View, ScrollView, Alert } from 'react-native';
-import { Avatar, Button, Text, useTheme, Card, IconButton, TextInput, ActivityIndicator, Switch, List } from 'react-native-paper'
+import { View, Alert } from 'react-native';
+import { Avatar, Button, Text, Card, IconButton, TextInput, ActivityIndicator, Switch, List } from 'react-native-paper'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { useUser } from '~/app/providers'
-import { useAppSelector } from '~/redux/store';
+import { useAppDispatch, useAppSelector } from '~/redux/store';
 import { getErrorMessage, updateUserName, updateUserProfilePicture, uploadProfilePicture } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import * as ImagePicker from 'expo-image-picker';
+import { clearRoomData } from '~/redux/chatSlice';
+
 export default function Settings() {
-	const { user, updateUser } = useUser();
-	const theme = useTheme();
+	const { user, updateUser, logout, isLoggingOut } = useUser();
 	const { isDark, toggleTheme, colors } = useAppTheme();
 	const socket = useAppSelector(state => state.socket.socket);
+	const dispatch = useAppDispatch();
 
 	const [isEditingName, setIsEditingName] = useState(false);
 	const [newName, setNewName] = useState(user?.name || '');
@@ -66,6 +68,10 @@ export default function Settings() {
 		}
 	};
 
+	const handleLogout = () => {
+		dispatch(clearRoomData());
+		logout();
+	};
 
 	return (
 		<SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
@@ -180,6 +186,25 @@ export default function Settings() {
 						/>
 					</Card.Content>
 				</Card>
+
+				<Button
+					mode="contained-tonal"
+					icon="logout"
+					onPress={handleLogout}
+					loading={isLoggingOut}
+					disabled={isLoggingOut}
+					textColor={colors.destructive}
+					style={{
+						marginTop: 20,
+						borderRadius: 14,
+						backgroundColor: colors.surface,
+						borderWidth: 1,
+						borderColor: colors.border,
+					}}
+					contentStyle={{ paddingVertical: 8 }}
+				>
+					{isLoggingOut ? 'Logging out...' : 'Logout'}
+				</Button>
 			</View>
 		</SafeAreaView>
 	)

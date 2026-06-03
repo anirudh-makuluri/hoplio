@@ -20,7 +20,14 @@ pluginManagement {
 plugins {
   id("com.facebook.react.settings")
   id("expo-autolinking-settings")
+    id 'org.gradle.toolchains.foojay-resolver-convention' version '0.10.0'
 }
+
+def prepareExpoNativePaths = providers.exec {
+  workingDir(rootDir.getParentFile())
+  commandLine("node", "./scripts/prepare-expo-native-paths.js")
+}
+prepareExpoNativePaths.result.get().assertNormalExitValue()
 
 extensions.configure(com.facebook.react.ReactSettingsExtension) { ex ->
   if (System.getenv('EXPO_USE_COMMUNITY_AUTOLINKING') == '1') {

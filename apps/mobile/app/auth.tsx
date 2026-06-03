@@ -116,21 +116,41 @@ export default function Page() {
 	}
 
 	async function authWithGoogle() {
+		console.log('[GoogleSignIn] button pressed');
 		setIsAuthenticating(true);
 		setSnackbarMsg('');
 		try {
+			console.log('[GoogleSignIn] checking Play Services');
 			await GoogleSignin.hasPlayServices();
+			console.log('[GoogleSignIn] Play Services available');
+			console.log('[GoogleSignIn] starting native sign-in');
 			const { idToken } = await GoogleSignin.signIn();
+			console.log('[GoogleSignIn] native sign-in resolved', {
+				hasIdToken: !!idToken,
+			});
+			if (!idToken) {
+				console.warn('[GoogleSignIn] sign-in resolved without idToken');
+			}
+			console.log('[GoogleSignIn] creating Firebase credential');
 			const googleCredential = GoogleAuthProvider.credential(idToken);
+			console.log('[GoogleSignIn] signing in to Firebase');
 			const userCredentials = await signInWithCredential(auth, googleCredential);
 			const user = userCredentials.user;
+			console.log('[GoogleSignIn] Firebase sign-in resolved', {
+				uid: user.uid,
+			});
+			console.log('[GoogleSignIn] setting session');
 			setSession(user);
+			console.log('[GoogleSignIn] revoking Google access');
 			await GoogleSignin.revokeAccess();
+			console.log('[GoogleSignIn] signing out of Google client');
 			await GoogleSignin.signOut();
+			console.log('[GoogleSignIn] flow completed');
 		} catch (error: any) {
 			console.warn('Google Sign-In error:', {
 				code: error.code,
 				message: error.message,
+				stack: error.stack,
 			});
 			setSnackbarMsg('Error occurred while trying to sign in with Google');
 			setIsAuthenticating(false);
@@ -139,17 +159,21 @@ export default function Page() {
 
 	async function setSession(user: User | null) {
 		if (!user) throw new Error('User not found');
+		console.log('[GoogleSignIn] fetching Firebase ID token');
 		const idToken = await user.getIdToken(true);
+		console.log('[GoogleSignIn] posting session to backend');
 		customFetch({
 			pathName: 'session',
 			method: 'POST',
 			body: { idToken },
 		})
 			.then(() => {
+				console.log('[GoogleSignIn] backend session created');
 				auth.signOut();
 				login();
 			})
 			.catch(() => {
+				console.warn('[GoogleSignIn] backend session creation failed');
 				setSnackbarMsg('Authentication failed. Please try again.');
 				setIsAuthenticating(false);
 			});
@@ -228,11 +252,11 @@ export default function Page() {
 							onPress={authWithGoogle}
 							disabled={isAuthenticating}
 							icon="google"
-							style={[styles.button, { backgroundColor: colors.primary }]}
+							style={[styles.button, { backgroundColor: colors.primary, display: 'none' }]}
 						>
 							{isSignIn ? 'Sign In' : 'Sign Up'} With Google
 						</Button>
-						<Divider />
+						{/*<Divider /> */}
 
 						<TextInput
 							label="Email"

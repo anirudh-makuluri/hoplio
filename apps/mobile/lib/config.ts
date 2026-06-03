@@ -5,7 +5,7 @@ export const config = {
 		projectId: "chitchat-388816",
 		storageBucket: "chitchat-388816.appspot.com",
 		messagingSenderId: "1068380641937",
-		appId: "1:1068380641937:android:378a97002fb1658570fd30",			
+		appId: "1:1068380641937:android:db8f872c1547fa1670fd30",
 		measurementId: "G-JPPWBR8LF2"
 	}	
 }

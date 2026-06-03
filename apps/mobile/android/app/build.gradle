@@ -3,6 +3,7 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
+project.ext.REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = new File(rootDir.getParentFile(), "vendor-node_modules/react-native-worklets").absolutePath
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -129,6 +130,12 @@ android {
     }
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
+    }
+}
+
+tasks.matching { it.name.startsWith("externalNativeBuildClean") }.configureEach {
+    doFirst {
+        delete(file(".cxx"), file("$buildDir/generated/autolinking"))
     }
 }
 

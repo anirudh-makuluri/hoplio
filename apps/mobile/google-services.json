@@ -9,10 +9,73 @@
       "client_info": {
         "mobilesdk_app_id": "1:1068380641937:android:43f1225ed024232d70fd30",
         "android_client_info": {
+          "package_name": "com.arm8tron.chatify"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1068380641937-bv8fb7116ai478pbch0f4ibnfhkl3920.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.arm8tron.chatify",
+            "certificate_hash": "542e5da393426d24b1bbc2e0ef7a96993e295a47"
+          }
+        },
+        {
+          "client_id": "1068380641937-tqhdvs5elf89bho1or9o44o02tglah0d.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.arm8tron.chatify",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
+        {
+          "client_id": "1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCTQLA0je1xtPWiccEXAjdlnWsoUiZAlPQ"
+        },
+        {
+          "current_key": "AIzaSyBL8panCSV0Cuc5UEVUe9SFH7TFjiee9PU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1068380641937-faa609ut6ef1mdh126n6l8279gissmr4.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "1068380641937-cddi8ssagvdh488rfidbhph6l1n3i13g.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.arm8tron.chitchat"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1068380641937:android:db8f872c1547fa1670fd30",
+        "android_client_info": {
           "package_name": "com.arm8tron.hoplio"
         }
       },
       "oauth_client": [
+        {
+          "client_id": "1068380641937-5kl6dcje1h74feb7dtfeu4uunc0m1pml.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.arm8tron.hoplio",
+            "certificate_hash": "5e8f16062ea3cd2c4a0d547876baa6f38cabf625"
+          }
+        },
         {
           "client_id": "1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com",
           "client_type": 3
