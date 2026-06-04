@@ -5,9 +5,9 @@ const Room = require('../Room');
 const logger = require('../logger');
 
 class SchedulerService {
-	constructor(io, roomList) {
+	constructor(io, realtimeService = null) {
 		this.io = io;
-		this.roomList = roomList;
+		this.realtimeService = realtimeService;
 		this.isRunning = false;
 	}
 
@@ -64,17 +64,7 @@ class SchedulerService {
 	async sendScheduledMessage(scheduledMessage) {
 		try {
 			const { roomId, userUid, message, messageType, fileName, userName, userPhoto } = scheduledMessage;
-
-			// Ensure room is loaded in roomList
-			if (!this.roomList.has(roomId)) {
-				await this.loadRoom(roomId);
-			}
-
-			const room = this.roomList.get(roomId);
-			if (!room) {
-				logger.error(`Room ${roomId} not found for scheduled message ${scheduledMessage.id}`);
-				return;
-			}
+			const room = await this.loadRoom(roomId);
 
 			// Create the chat event for the scheduled message
 			const chatEvent = {
@@ -124,10 +114,8 @@ class SchedulerService {
 			const roomName = roomData.name || '';
 			const photoUrl = roomData.photo_url || '';
 
-			const room = new Room(roomId, this.io, roomRef, isGroup, members, roomName, photoUrl);
-			this.roomList.set(roomId, room);
-
 			logger.debug(`Room ${roomId} loaded for scheduled message`);
+			return new Room(roomId, this.io, roomRef, isGroup, members, roomName, photoUrl, this.realtimeService);
 		} catch (error) {
 			logger.error(`Error loading room ${roomId}:`, error);
 			throw error;

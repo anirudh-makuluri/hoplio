@@ -146,16 +146,18 @@ Rate limiting is intentionally deferred by current product decision and is not p
 
 Goal: allow the backend to scale horizontally without losing correctness.
 
+Progress note: Redis-backed realtime coordination and the Socket.IO Redis adapter are now wired for Redis TCP plus Upstash REST.
+
 #### Backend
 
-- [ ] Introduce Redis
-- [ ] Move socket session tracking out of in-memory `Map`
-- [ ] Move cross-instance presence state to Redis-backed coordination
-- [ ] Add Socket.IO Redis adapter
-- [ ] Make room membership and presence broadcasts work across multiple backend instances
-- [ ] Add reconnect-safe session restoration behavior
-- [ ] Remove assumptions that one server instance owns all room state
-- [ ] Add health and readiness endpoints
+- [x] Introduce Redis
+- [x] Move socket session tracking out of in-memory `Map`
+- [x] Move cross-instance presence state to Redis-backed coordination
+- [x] Add Socket.IO Redis adapter
+- [x] Make room membership and presence broadcasts work across multiple backend instances
+- [x] Add reconnect-safe session restoration behavior
+- [x] Remove assumptions that one server instance owns all room state
+- [x] Add health and readiness endpoints
 
 #### Ops
 

@@ -9,10 +9,13 @@ function attachSocketServer(io, dependencies = {}) {
 	const aiHelper = dependencies.aiHelper || require('./helpers/ai-helper');
 	const zepHelper = dependencies.zepHelper || require('./helpers/zep-helper');
 	const RoomClass = dependencies.Room || require('./Room');
+	const { createRealtimeService } = dependencies.realtimeFactory || require('./helpers/realtime-service');
 	const db = dependencies.db || config.firebase.db;
 	const admin = dependencies.admin || config.firebase.admin;
-	const sessionStore = dependencies.sessionStore || new Map();
-	const roomList = dependencies.roomList || new Map();
+	const realtimeService = dependencies.realtimeService || createRealtimeService(io, {
+		logger,
+		redisConfig: config.redis
+	});
 
 	function getRoomThreadId(roomId, roomData, userUid) {
 		const members = roomData?.members || [];
@@ -82,23 +85,17 @@ function attachSocketServer(io, dependencies = {}) {
 		}
 	}
 
-	async function getOrCreateRoomInstance(roomId, roomRef, roomData) {
-		if (!roomList.has(roomId)) {
-			roomList.set(
-				roomId,
-				new RoomClass(
-					roomId,
-					io,
-					roomRef,
-					roomData.is_group,
-					roomData.members,
-					roomData.name || '',
-					roomData.photo_url || ''
-				)
-			);
-		}
-
-		return roomList.get(roomId);
+	function createRoomInstance(roomId, roomRef, roomData) {
+		return new RoomClass(
+			roomId,
+			io,
+			roomRef,
+			roomData.is_group,
+			roomData.members,
+			roomData.name || '',
+			roomData.photo_url || '',
+			realtimeService
+		);
 	}
 
 	function sanitizeSocketUserUpdates(newData) {
@@ -158,13 +155,13 @@ function attachSocketServer(io, dependencies = {}) {
 		logger.debug('Socket handshake auth received');
 		logger.debug('-----------------------------------------------');
 
-		if (decodedClaims) {
-			socket.uid = decodedClaims.uid;
-			socket.email = decodedClaims.email;
-		} else {
+		if (!decodedClaims) {
 			logger.warn('Could not get valid sessionCookie, cannot create websocket');
 			return next(new Error('Could not get valid sessionCookie, cannot create websocket'));
 		}
+
+		socket.uid = decodedClaims.uid;
+		socket.email = decodedClaims.email;
 
 		try {
 			const userRef = db.collection('auth_users').doc(socket.uid);
@@ -174,24 +171,35 @@ function attachSocketServer(io, dependencies = {}) {
 			}
 
 			const userData = userSnap.data() || {};
-			socket.session = {
+			const durableRoomIds = Array.isArray(userData.joined_rooms) ? userData.joined_rooms : [];
+			const existingSessions = await realtimeService.getUserSessions(socket.uid);
+			socket.wasOfflineOnConnect = existingSessions.length === 0;
+			const restoredRoomIds = await realtimeService.restoreRoomIds(socket.uid, durableRoomIds);
+			socket.session = await realtimeService.registerSocketSession({
 				currentSocketId: socket.id,
 				name: userData.name || decodedClaims.name || socket.email,
 				photo_url: userData.photo_url || '',
 				uid: socket.uid,
-				roomIds: [],
+				roomIds: restoredRoomIds,
 				friendUids: userData.friend_list || []
-			};
-			sessionStore.set(socket.uid, socket.session);
-			logger.info(`Adding ${socket.uid} to sessionStore`);
-			logger.debug(`SessionStore size: ${sessionStore.size}`);
+			});
 
-			await userRef.update({ is_online: true });
+			socket.join(realtimeService.getUserRoomName(socket.uid));
+			if (socket.session.roomIds.length > 0) {
+				socket.join(socket.session.roomIds);
+			}
+		} catch (error) {
+			logger.error('Failed to initialize socket session:', error);
+			return next(new Error('Failed to initialize realtime session'));
+		}
 
-			for (const friendUid of socket.session.friendUids) {
-				const friendSession = sessionStore.get(friendUid);
-				if (friendSession) {
-					io.to(friendSession.currentSocketId).emit('presence_update', {
+		try {
+			const userRef = db.collection('auth_users').doc(socket.uid);
+			if (socket.wasOfflineOnConnect) {
+				await userRef.update({ is_online: true });
+
+				for (const friendUid of socket.session.friendUids) {
+					await realtimeService.emitRoomEvent(realtimeService.getUserRoomName(friendUid), 'presence_update', {
 						uid: socket.uid,
 						is_online: true,
 						last_seen: null
@@ -201,6 +209,7 @@ function attachSocketServer(io, dependencies = {}) {
 		} catch (error) {
 			logger.error('Failed to set user online:', error);
 		}
+
 		return next();
 	});
 
@@ -210,12 +219,13 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
-				await getOrCreateRoomInstance(normalizedRoomId, roomRef, roomData);
+				createRoomInstance(normalizedRoomId, roomRef, roomData);
 
 				socket.join(normalizedRoomId);
-				if (!socket.session.roomIds.includes(normalizedRoomId)) {
-					socket.session.roomIds.push(normalizedRoomId);
-				}
+				const roomIds = socket.session.roomIds.includes(normalizedRoomId)
+					? socket.session.roomIds
+					: [...socket.session.roomIds, normalizedRoomId];
+				socket.session = await realtimeService.updateSocketRooms(socket.id, roomIds);
 
 				const zepThreadId = getRoomThreadId(normalizedRoomId, roomData, socket.uid);
 				await zepHelper.createThread(socket.uid, zepThreadId, {
@@ -239,7 +249,7 @@ function attachSocketServer(io, dependencies = {}) {
 					: validateEntityId(data.curChatDocId, 'chatDocId');
 				const { roomRef, roomData } = await getRoomDetails(roomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(roomId, roomRef, roomData);
+				const room = createRoomInstance(roomId, roomRef, roomData);
 				const response = await room.loadChatFromDb(curChatDocId);
 				safeSocketCallback(callback, response);
 			} catch (error) {
@@ -257,7 +267,9 @@ function attachSocketServer(io, dependencies = {}) {
 				const messageId = data.id == null ? undefined : validateMessageId(data.id, 'messageId');
 				const { roomRef, roomData } = await getRoomDetails(roomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(roomId, roomRef, roomData);
+				const room = createRoomInstance(roomId, roomRef, roomData);
+				const liveSession = await realtimeService.getSocketSession(socket.id) || socket.session;
+				socket.session = liveSession;
 				const type = String(data.type).trim();
 				if (!type) {
 					throw new Error('type is required');
@@ -270,8 +282,8 @@ function attachSocketServer(io, dependencies = {}) {
 					id: messageId,
 					roomId,
 					userUid: socket.uid,
-					userName: socket.session.name,
-					userPhoto: socket.session.photo_url,
+					userName: liveSession.name,
+					userPhoto: liveSession.photo_url,
 					type,
 					chatInfo,
 					fileName: data.fileName || '',
@@ -327,19 +339,21 @@ function attachSocketServer(io, dependencies = {}) {
 
 		socket.on('disconnect', async () => {
 			logger.info('A client disconnected:', socket.uid);
-			sessionStore.delete(socket.uid);
-			logger.debug(`Deleting ${socket.uid} from sessionStore`);
 
 			try {
-				const userRef = db.collection('auth_users').doc(socket.uid);
-				const lastSeen = admin.firestore.FieldValue.serverTimestamp();
-				await userRef.update({ is_online: false, last_seen: lastSeen });
+				const { session, remainingUserSessionCount } = await realtimeService.unregisterSocketSession(socket.id);
+				const sessionSnapshot = session || socket.session;
+				if (!sessionSnapshot) {
+					return;
+				}
 
-				const friendUids = socket.session.friendUids || [];
-				for (const friendUid of friendUids) {
-					const friendSession = sessionStore.get(friendUid);
-					if (friendSession) {
-						io.to(friendSession.currentSocketId).emit('presence_update', {
+				if (remainingUserSessionCount === 0) {
+					const userRef = db.collection('auth_users').doc(socket.uid);
+					const lastSeen = admin.firestore.FieldValue.serverTimestamp();
+					await userRef.update({ is_online: false, last_seen: lastSeen });
+
+					for (const friendUid of sessionSnapshot.friendUids || []) {
+						await realtimeService.emitRoomEvent(realtimeService.getUserRoomName(friendUid), 'presence_update', {
 							uid: socket.uid,
 							is_online: false,
 							last_seen: Date.now()
@@ -349,29 +363,19 @@ function attachSocketServer(io, dependencies = {}) {
 			} catch (error) {
 				logger.error('Failed to set user offline:', error);
 			}
-
-			const roomIds = socket.session.roomIds || [];
-			roomIds.forEach((roomId) => {
-				const usersInRoom = io.sockets.adapter.rooms.get(roomId);
-				const numUsersInRoom = usersInRoom ? usersInRoom.size : 0;
-				if (numUsersInRoom === 0) {
-					roomList.delete(roomId);
-					logger.debug(`Deleted ${roomId} from roomList`);
-				}
-			});
 		});
 
 		socket.on('send_friend_request_client_to_server', async ({ receiverUid }, callback) => {
 			try {
 				const normalizedReceiverUid = validateEntityId(receiverUid, 'receiverUid');
-
 				const senderUid = socket.uid;
-				const receiver = sessionStore.get(normalizedReceiverUid);
 				const response = await dbHelper.sendFriendRequest(senderUid, normalizedReceiverUid);
-				if (receiver) {
-					const senderData = await dbHelper.getUserData(senderUid);
-					io.to(receiver.currentSocketId).emit('send_friend_request_server_to_client', senderData);
-				}
+				const senderData = await dbHelper.getUserData(senderUid);
+				await realtimeService.emitRoomEvent(
+					realtimeService.getUserRoomName(normalizedReceiverUid),
+					'send_friend_request_server_to_client',
+					senderData
+				);
 
 				safeSocketCallback(callback, response);
 			} catch (error) {
@@ -382,13 +386,15 @@ function attachSocketServer(io, dependencies = {}) {
 		socket.on('respond_friend_request_client_to_server', async ({ requestUid, isAccepted }, callback) => {
 			try {
 				const normalizedRequestUid = validateEntityId(requestUid, 'requestUid');
-
 				const response = await dbHelper.respondFriendRequest(socket.uid, normalizedRequestUid, isAccepted);
 
-				const requestedUser = sessionStore.get(normalizedRequestUid);
-				if (requestedUser && isAccepted) {
+				if (isAccepted) {
 					const respondedUserData = await dbHelper.getUserData(socket.uid);
-					io.to(requestedUser.currentSocketId).emit('respond_friend_request_server_to_client', respondedUserData);
+					await realtimeService.emitRoomEvent(
+						realtimeService.getUserRoomName(normalizedRequestUid),
+						'respond_friend_request_server_to_client',
+						respondedUserData
+					);
 				}
 
 				safeSocketCallback(callback, response);
@@ -401,13 +407,11 @@ function attachSocketServer(io, dependencies = {}) {
 			try {
 				const sanitizedData = sanitizeSocketUserUpdates(newData);
 				const response = await dbHelper.updateUserData(socket.uid, sanitizedData);
-
-				if (sanitizedData.name != null && sessionStore.has(socket.uid)) {
-					sessionStore.get(socket.uid).name = sanitizedData.name;
-				}
-				if (sanitizedData.photo_url != null && sessionStore.has(socket.uid)) {
-					sessionStore.get(socket.uid).photo_url = sanitizedData.photo_url;
-				}
+				await realtimeService.updateUserSessions(socket.uid, sanitizedData);
+				socket.session = {
+					...socket.session,
+					...sanitizedData
+				};
 
 				safeSocketCallback(callback, response);
 			} catch (error) {
@@ -426,13 +430,14 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedReactionId = validateEntityId(reactionId, 'reactionId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(normalizedRoomId, roomRef, roomData);
+				const room = createRoomInstance(normalizedRoomId, roomRef, roomData);
+				const liveSession = await realtimeService.getSocketSession(socket.id) || socket.session;
 				const response = await room.updateReaction({
 					reactionId: normalizedReactionId,
 					id: normalizedMessageId,
 					chatDocId: normalizedChatDocId,
 					userUid: socket.uid,
-					userName: socket.session.name
+					userName: liveSession.name
 				});
 
 				safeSocketCallback(callback, response);
@@ -452,7 +457,7 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(normalizedRoomId, roomRef, roomData);
+				const room = createRoomInstance(normalizedRoomId, roomRef, roomData);
 				const response = await room.deleteChatMessage({
 					id: normalizedMessageId,
 					chatDocId: normalizedChatDocId,
@@ -477,7 +482,7 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedNewText = validateMessageText(newText, 'newText');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(normalizedRoomId, roomRef, roomData);
+				const room = createRoomInstance(normalizedRoomId, roomRef, roomData);
 				const response = await room.editChatMessage({
 					id: normalizedMessageId,
 					chatDocId: normalizedChatDocId,
@@ -502,7 +507,7 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedChatDocId = validateEntityId(chatDocId, 'chatDocId');
 				const { roomRef, roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
-				const room = await getOrCreateRoomInstance(normalizedRoomId, roomRef, roomData);
+				const room = createRoomInstance(normalizedRoomId, roomRef, roomData);
 				const response = await room.saveChatMessage({
 					id: normalizedMessageId,
 					chatDocId: normalizedChatDocId
@@ -517,7 +522,6 @@ function attachSocketServer(io, dependencies = {}) {
 		socket.on('ai_summarize_conversation', async ({ roomId }, callback) => {
 			try {
 				const normalizedRoomId = validateEntityId(roomId, 'roomId');
-
 				const { roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
 
@@ -544,7 +548,9 @@ function attachSocketServer(io, dependencies = {}) {
 
 		socket.on('ai_analyze_sentiment', async ({ message }, callback) => {
 			try {
-				if (!message) throw new Error('Message is required');
+				if (!message) {
+					throw new Error('Message is required');
+				}
 				const sentiment = await aiHelper.analyzeSentiment(message);
 				callback(sentiment);
 			} catch (error) {
@@ -580,14 +586,15 @@ function attachSocketServer(io, dependencies = {}) {
 				const normalizedMessage = validateMessageText(scheduledMessage.message, 'message');
 				const { roomData } = await getRoomDetails(normalizedRoomId);
 				ensureRoomMember(roomData, socket.uid);
+				const liveSession = await realtimeService.getSocketSession(socket.id) || socket.session;
 
 				const response = await dbHelper.createScheduledMessage({
 					...scheduledMessage,
 					roomId: normalizedRoomId,
 					message: normalizedMessage,
 					userUid: socket.uid,
-					userName: socket.session.name,
-					userPhoto: socket.session.photo_url
+					userName: liveSession.name,
+					userPhoto: liveSession.photo_url
 				});
 
 				safeSocketCallback(callback, response);
@@ -617,10 +624,11 @@ function attachSocketServer(io, dependencies = {}) {
 		socket.on('update_scheduled_message', async ({ scheduledMessageId, updates }, callback) => {
 			try {
 				const normalizedScheduledMessageId = validateEntityId(scheduledMessageId, 'scheduledMessageId');
-
 				const scheduledMessageRef = db.collection('scheduled_messages').doc(normalizedScheduledMessageId);
 				const scheduledMessageSnap = await scheduledMessageRef.get();
-				if (!scheduledMessageSnap.exists) throw new Error('Scheduled message not found');
+				if (!scheduledMessageSnap.exists) {
+					throw new Error('Scheduled message not found');
+				}
 
 				const scheduledMessageData = scheduledMessageSnap.data();
 				if (scheduledMessageData.userUid !== socket.uid) {
@@ -644,7 +652,6 @@ function attachSocketServer(io, dependencies = {}) {
 		socket.on('delete_scheduled_message', async ({ scheduledMessageId }, callback) => {
 			try {
 				const normalizedScheduledMessageId = validateEntityId(scheduledMessageId, 'scheduledMessageId');
-
 				const response = await dbHelper.deleteScheduledMessage(normalizedScheduledMessageId, socket.uid);
 				safeSocketCallback(callback, response);
 			} catch (error) {
@@ -655,8 +662,7 @@ function attachSocketServer(io, dependencies = {}) {
 	});
 
 	return {
-		sessionStore,
-		roomList
+		realtimeService
 	};
 }
 

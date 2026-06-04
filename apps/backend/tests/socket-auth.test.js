@@ -16,6 +16,7 @@ function createState() {
 				email: 'user1@example.com',
 				photo_url: 'https://example.com/u1.png',
 				friend_list: ['user-2'],
+				joined_rooms: ['room-1'],
 				is_online: false
 			},
 			'user-2': {
@@ -24,6 +25,7 @@ function createState() {
 				email: 'user2@example.com',
 				photo_url: 'https://example.com/u2.png',
 				friend_list: ['user-1'],
+				joined_rooms: ['room-2'],
 				is_online: false
 			}
 		},
@@ -346,6 +348,30 @@ test('join_room rejects invalid room identifiers', async () => {
 
 		const response = await emitAck(client, 'join_room', '../room-1');
 		assert.deepEqual(response, { error: 'Invalid roomId' });
+
+		client.close();
+	} finally {
+		await stopHarness(harness);
+	}
+});
+
+test('socket connections restore durable room membership before client rejoin events', async () => {
+	const harness = await startHarness();
+	try {
+		const client = connectClient(harness, 'session-user-1');
+		await once(client, 'connect');
+
+		const messagePromise = once(client, 'chat_event_server_to_client');
+		harness.io.to('room-1').emit('chat_event_server_to_client', {
+			id: 'restored-room-message',
+			roomId: 'room-1',
+			type: 'text',
+			chatInfo: 'restored'
+		});
+
+		const [message] = await messagePromise;
+		assert.equal(message.roomId, 'room-1');
+		assert.equal(message.id, 'restored-room-message');
 
 		client.close();
 	} finally {
