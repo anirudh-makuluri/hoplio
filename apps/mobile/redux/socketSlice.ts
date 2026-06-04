@@ -68,7 +68,12 @@ export const sendMessageToServer = (message: ChatMessage): AppThunk => async (di
 	const { isOffline } = getState().chat;
 	
 	// Always add message to local state first for immediate UI update
-	dispatch(addMessage(message));
+	dispatch(
+		addMessage({
+			message,
+			currentUserUid: message.userUid,
+		})
+	);
 	
 	if (socket && !isOffline) {
 		// Online: Send to server
@@ -180,6 +185,23 @@ export const addReaction = (params: {
 			console.log('Reaction added/removed successfully:', response);
 		} else {
 			console.error('Failed to add/remove reaction:', response);
+		}
+	});
+};
+
+export const saveMessage = (params: {
+	id: string;
+	chatDocId: string;
+	roomId: string;
+}): AppThunk => (dispatch, getState) => {
+	const { socket } = getState().socket;
+	if (!socket) return;
+
+	socket.emit('chat_save_client_to_server', params, (response: any) => {
+		if (response.success) {
+			console.log('Message saved successfully:', response);
+		} else {
+			console.error('Failed to save message:', response);
 		}
 	});
 };

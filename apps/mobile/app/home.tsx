@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Text, IconButton, Avatar, Icon, FAB } from 'react-native-paper';
+import { View, StyleSheet } from 'react-native';
+import { Text, Icon, FAB } from 'react-native-paper';
 import { useUser } from './providers';
 import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
@@ -11,6 +11,7 @@ import {
 	joinChatRoom,
 	editMessageInChat,
 	deleteMessageFromChat,
+	saveChatMessage,
 	toggleReaction,
 	updateUserPresence,
 	setOfflineMode,
@@ -35,7 +36,7 @@ import {
 
 // Note: HamburgerMenu component has been replaced with BottomNavBar
 
-type TabType = 'chats' | 'calls' | 'updates' | 'profile';
+type TabType = 'chats' | 'updates' | 'profile';
 
 export default function Page() {
 	const { user, isLoading, updateUser, logout, isOffline } = useUser();
@@ -43,6 +44,7 @@ export default function Page() {
 	const { showToast } = useToast();
 	const socket = useAppSelector((state) => state.socket.socket);
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
+	const unreadCounts = useAppSelector((state) => state.chat.unreadCounts);
 	const dispatch = useAppDispatch();
 	const reduxDispatch = useDispatch();
 	const e2eeInitialized = useE2EEInitialization();
@@ -51,11 +53,10 @@ export default function Page() {
 	const [currentTab, setCurrentTab] = useState<TabType>('chats');
 	const [showGroupModal, setShowGroupModal] = useState(false);
 	const [roomsBootstrapped, setRoomsBootstrapped] = useState(false);
+	const totalUnreadCount = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
 
 	const renderCurrentView = () => {
 		switch (currentTab) {
-			case 'calls':
-				return <ComingSoonView title="Calls" icon="phone" message="Voice and video calls coming soon!" />;
 			case 'updates':
 				return <Friends />;
 			case 'profile':
@@ -66,9 +67,6 @@ export default function Page() {
 	};
 
 	const handleTabChange = (tab: TabType) => {
-		if (tab === 'calls') {
-			showToast({ message: 'Calls feature coming soon!', type: 'coming-soon' });
-		}
 		setCurrentTab(tab);
 	};
 
@@ -76,17 +74,6 @@ export default function Page() {
 		reduxDispatch(clearRoomData());
 		logout();
 	};
-
-	// ComingSoon placeholder view
-	const ComingSoonView = ({ title, icon, message }: { title: string; icon: string; message: string }) => (
-		<View style={[styles.comingSoonContainer, { backgroundColor: colors.background }]}>
-			<View style={[styles.comingSoonIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-				<Icon source={icon} size={64} color={colors.primary} />
-			</View>
-			<Text style={[styles.comingSoonTitle, { color: colors.text }]}>{title}</Text>
-			<Text style={[styles.comingSoonMessage, { color: colors.textSecondary }]}>{message}</Text>
-		</View>
-	);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -162,7 +149,12 @@ export default function Page() {
 				...msg,
 				id: msg.id,
 			};
-			dispatch(addMessage(mappedMessage));
+			dispatch(
+				addMessage({
+					message: mappedMessage,
+					currentUserUid: user?.uid,
+				})
+			);
 		});
 
 		socket.on('send_friend_request_server_to_client', (data: TUser) => {
@@ -184,6 +176,7 @@ export default function Page() {
 			const newRoomData: TRoomData = {
 				is_group: false,
 				messages: [],
+				saved_messages: [],
 				name: data.name,
 				photo_url: data.photo_url,
 				roomId: newRoomId,
@@ -235,15 +228,31 @@ export default function Page() {
 			);
 		});
 
+		socket.on('chat_save_server_to_client', (data: any) => {
+			dispatch(
+				saveChatMessage({
+					roomId: data.roomId,
+					id: data.id,
+				})
+			);
+		});
+
 		socket.on('presence_update', (presenceData: any) => {
 			console.log('User presence changed:', presenceData);
 			dispatch(updateUserPresence(presenceData));
 		});
 
 		return () => {
-			if (activeChatRoomId != '') return;
+			socket.off('chat_event_server_to_client');
+			socket.off('send_friend_request_server_to_client');
+			socket.off('respond_friend_request_server_to_client');
+			socket.off('chat_edit_server_to_client');
+			socket.off('chat_delete_server_to_client');
+			socket.off('chat_reaction_server_to_client');
+			socket.off('chat_save_server_to_client');
+			socket.off('presence_update');
 		};
-	}, [socket]);
+	}, [socket, user, updateUser, dispatch]);
 
 	if (user && (!e2eeInitialized || !roomsBootstrapped || isSyncingE2EEKeys)) {
 		return (
@@ -271,30 +280,10 @@ export default function Page() {
 							<Text style={[styles.headerTitle, { color: colors.text }]}>
 								{currentTab === 'chats'
 									? 'Chats'
-									: currentTab === 'calls'
-										? 'Calls'
-										: currentTab === 'updates'
+									: currentTab === 'updates'
 											? 'Friends'
 											: 'Profile'}
 							</Text>
-							<View style={styles.headerActions}>
-								<IconButton
-									icon="magnify"
-									size={22}
-									iconColor={colors.text}
-									onPress={() =>
-										showToast({ message: 'Search coming soon!', type: 'coming-soon' })
-									}
-								/>
-								<IconButton
-									icon="camera-outline"
-									size={22}
-									iconColor={colors.text}
-									onPress={() =>
-										showToast({ message: 'Camera feature coming soon!', type: 'coming-soon' })
-									}
-								/>
-							</View>
 						</View>
 					</GlassSurface>
 				</View>
@@ -317,7 +306,7 @@ export default function Page() {
 			<BottomNavBar
 				activeTab={currentTab}
 				onTabChange={handleTabChange}
-				unreadCount={0}
+				unreadCount={totalUnreadCount}
 				pendingRequests={user?.received_friend_requests?.length || 0}
 			/>
 
@@ -352,10 +341,6 @@ const styles = StyleSheet.create({
 		fontSize: 28,
 		fontWeight: '700',
 		letterSpacing: -0.5,
-	},
-	headerActions: {
-		flexDirection: 'row',
-		alignItems: 'center',
 	},
 	mainContent: {
 		flex: 1,

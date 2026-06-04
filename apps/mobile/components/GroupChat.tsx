@@ -1,27 +1,35 @@
-import React, { useState } from 'react';
-import { View, ScrollView, Alert } from 'react-native';
-import { 
-	Button, 
-	Text, 
-	TextInput, 
-	Modal, 
-	Portal, 
-	Card, 
-	Avatar, 
-	IconButton, 
-	Chip, 
+import React, { useMemo, useState } from 'react';
+import { Alert, ScrollView, View } from 'react-native';
+import {
 	ActivityIndicator,
+	Avatar,
+	Button,
+	Card,
+	Chip,
+	Icon,
+	IconButton,
+	Modal,
+	Portal,
 	Searchbar,
-	Icon
+	Text,
+	TextInput,
 } from 'react-native-paper';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { TUser } from '~/lib/types';
-import { useUser } from '~/app/providers';
-import { useAppDispatch, useAppSelector } from '~/redux/store';
-import { createGroupService, addMembersToGroupService, removeMemberFromGroupService, updateGroupInfoService, deleteGroupService } from '~/lib/groupService';
-import { updateGroupMembers, updateGroupInfo, removeGroupRoom, setActiveRoomId } from '~/redux/chatSlice';
+import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
+import { useUser } from '~/app/providers';
 import { useTheme } from '~/lib/themeContext';
+import { TUser } from '~/lib/types';
+import { getErrorMessage, uploadFile } from '~/lib/utils';
+import {
+	addMembersToGroupService,
+	createGroupService,
+	deleteGroupService,
+	removeMemberFromGroupService,
+	updateGroupInfoService,
+} from '~/lib/groupService';
+import { setActiveRoomId } from '~/redux/chatSlice';
+import { useAppDispatch, useAppSelector } from '~/redux/store';
 
 interface GroupChatProps {
 	roomId?: string;
@@ -32,25 +40,87 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 	const { user, updateUser } = useUser();
 	const { colors } = useTheme();
 	const dispatch = useAppDispatch();
-	const activeRoom = useAppSelector(state => state.chat.rooms[roomId || '']);
-	
+	const activeRoom = useAppSelector((state) => state.chat.rooms[roomId || '']);
+
 	const [groupName, setGroupName] = useState(activeRoom?.name || '');
+	const [groupPhotoUri, setGroupPhotoUri] = useState(activeRoom?.photo_url || '');
 	const [searchQuery, setSearchQuery] = useState('');
 	const [selectedMembers, setSelectedMembers] = useState<string[]>([]);
 	const [isCreating, setIsCreating] = useState(false);
 	const [isUpdating, setIsUpdating] = useState(false);
+	const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
 	const [showMemberSearch, setShowMemberSearch] = useState(false);
-	const [searchResults, setSearchResults] = useState<TUser[]>([]);
-	const [isSearching, setIsSearching] = useState(false);
 
 	const isEditMode = !!roomId;
 	const groupMembers = activeRoom?.members || [];
 
-	// Filter friends for member selection
-	const availableFriends = user?.friend_list?.filter(friend => 
-		!selectedMembers.includes(friend.uid) && 
-		!groupMembers.includes(friend.uid)
-	) || [];
+	const availableFriends = useMemo(
+		() =>
+			user?.friend_list?.filter(
+				(friend) => !selectedMembers.includes(friend.uid) && !groupMembers.includes(friend.uid)
+			) || [],
+		[user?.friend_list, selectedMembers, groupMembers]
+	);
+
+	const filteredFriends = useMemo(() => {
+		const query = searchQuery.trim().toLowerCase();
+		if (!query) {
+			return availableFriends;
+		}
+
+		return availableFriends.filter(
+			(friend) =>
+				friend.name.toLowerCase().includes(query) ||
+				friend.email.toLowerCase().includes(query)
+		);
+	}, [availableFriends, searchQuery]);
+
+	const getMemberName = (uid: string) => {
+		const friend = user?.friend_list?.find((candidate) => candidate.uid === uid);
+		return friend?.name || 'Unknown User';
+	};
+
+	const getMemberPhoto = (uid: string) => {
+		const friend = user?.friend_list?.find((candidate) => candidate.uid === uid);
+		return friend?.photo_url || 'https://ui-avatars.com/api/?name=Member';
+	};
+
+	const updateUserRoomLocally = (transform: (rooms: typeof user.rooms) => typeof user.rooms) => {
+		if (!user) return;
+		updateUser({ rooms: transform(user.rooms || []) });
+	};
+
+	const resolveGroupPhotoUrl = async () => {
+		if (!user || !groupPhotoUri || groupPhotoUri.startsWith('http')) {
+			return groupPhotoUri || undefined;
+		}
+
+		setIsUploadingPhoto(true);
+		try {
+			return await uploadFile(user.uid, groupPhotoUri, `group-photo-${Date.now()}.jpg`, 'image/jpeg');
+		} finally {
+			setIsUploadingPhoto(false);
+		}
+	};
+
+	const pickGroupPhoto = async () => {
+		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+		if (status !== 'granted') {
+			Alert.alert('Permission needed', 'Please grant photo library access');
+			return;
+		}
+
+		const result = await ImagePicker.launchImageLibraryAsync({
+			mediaTypes: ImagePicker.MediaTypeOptions.Images,
+			allowsEditing: true,
+			aspect: [1, 1],
+			quality: 0.8,
+		});
+
+		if (!result.canceled && result.assets[0]) {
+			setGroupPhotoUri(result.assets[0].uri);
+		}
+	};
 
 	const handleCreateGroup = async () => {
 		if (!user) {
@@ -70,241 +140,254 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 
 		setIsCreating(true);
 		try {
-		const response = await dispatch(createGroupService(user, {
-			name: groupName,
-			memberUids: selectedMembers
-		})) as any;
+			const photoUrl = await resolveGroupPhotoUrl();
+			const response = (await dispatch(
+				createGroupService(user, {
+					name: groupName.trim(),
+					photoUrl,
+					memberUids: selectedMembers,
+				})
+			)) as any;
 
-			if (response.success) {
-				Alert.alert('Success', 'Group created successfully!', [
-					{ text: 'OK', onPress: () => {
+			if (!response?.success || !response.roomId || !response.room) {
+				throw new Error(response?.error || 'Failed to create group');
+			}
+
+			updateUser({ rooms: [...(user.rooms || []), response.room] });
+
+			Alert.alert('Success', 'Group created successfully!', [
+				{
+					text: 'OK',
+					onPress: () => {
 						onClose();
 						dispatch(setActiveRoomId(response.roomId));
 						router.push('/room');
-					}}
-				]);
-			} else {
-				Alert.alert('Error', 'Failed to create group');
-			}
+					},
+				},
+			]);
 		} catch (error) {
-			Alert.alert('Error', 'Failed to create group');
+			Alert.alert('Error', getErrorMessage(error, 'Failed to create group'));
 		} finally {
 			setIsCreating(false);
 		}
 	};
 
 	const handleUpdateGroup = async () => {
-		if (!user) {
+		if (!user || !roomId) {
 			Alert.alert('Error', 'User not found');
 			return;
 		}
 
-		if (!roomId || !groupName.trim()) {
+		if (!groupName.trim()) {
 			Alert.alert('Error', 'Please enter a group name');
 			return;
 		}
 
 		setIsUpdating(true);
 		try {
-			const response = await dispatch(updateGroupInfoService(user, roomId, {
-				name: groupName
-			})) as any;
+			const photoUrl = await resolveGroupPhotoUrl();
+			const response = (await dispatch(
+				updateGroupInfoService(user, roomId, {
+					name: groupName.trim(),
+					photoUrl,
+				})
+			)) as any;
 
-			if (response.success) {
-				Alert.alert('Success', 'Group updated successfully!');
-			} else {
-				Alert.alert('Error', 'Failed to update group');
+			if (!response?.success) {
+				throw new Error(response?.error || 'Failed to update group');
 			}
+
+			updateUserRoomLocally((rooms) =>
+				rooms.map((room) =>
+					room.roomId === roomId
+						? {
+								...room,
+								name: groupName.trim(),
+								photo_url: photoUrl || room.photo_url,
+							}
+						: room
+				)
+			);
+
+			Alert.alert('Success', 'Group updated successfully!');
 		} catch (error) {
-			Alert.alert('Error', 'Failed to update group');
+			Alert.alert('Error', getErrorMessage(error, 'Failed to update group'));
 		} finally {
 			setIsUpdating(false);
 		}
 	};
 
 	const handleAddMembers = async () => {
-		if (!user) {
-			Alert.alert('Error', 'User not found');
+		if (!user || !roomId || selectedMembers.length === 0) {
 			return;
 		}
 
-		if (!roomId || selectedMembers.length === 0) return;
-
 		try {
-			const response = await dispatch(addMembersToGroupService(user, roomId, selectedMembers)) as any;
-			if (response.success) {
-				Alert.alert('Success', 'Members added successfully!');
-				setSelectedMembers([]);
-				setShowMemberSearch(false);
-			} else {
-				Alert.alert('Error', 'Failed to add members');
+			const response = (await dispatch(addMembersToGroupService(user, roomId, selectedMembers))) as any;
+			if (!response?.success) {
+				throw new Error(response?.error || 'Failed to add members');
 			}
+
+			updateUserRoomLocally((rooms) =>
+				rooms.map((room) =>
+					room.roomId === roomId
+						? {
+								...room,
+								members: [...(room.members || []), ...selectedMembers],
+							}
+						: room
+				)
+			);
+
+			Alert.alert('Success', 'Members added successfully!');
+			setSelectedMembers([]);
+			setSearchQuery('');
+			setShowMemberSearch(false);
 		} catch (error) {
-			Alert.alert('Error', 'Failed to add members');
+			Alert.alert('Error', getErrorMessage(error, 'Failed to add members'));
 		}
 	};
 
 	const handleRemoveMember = async (memberUid: string) => {
-		if (!user) {
+		if (!user || !roomId) {
 			Alert.alert('Error', 'User not found');
 			return;
 		}
 
-		if (!roomId) return;
-
-		Alert.alert(
-			'Remove Member',
-			'Are you sure you want to remove this member from the group?',
-			[
-				{ text: 'Cancel', style: 'cancel' },
-				{
-					text: 'Remove',
-					style: 'destructive',
-					onPress: async () => {
-						try {
-							const response = await dispatch(removeMemberFromGroupService(user, roomId, memberUid)) as any;
-							if (response.success) {
-								Alert.alert('Success', 'Member removed successfully!');
-							} else {
-								Alert.alert('Error', 'Failed to remove member');
-							}
-						} catch (error) {
-							Alert.alert('Error', 'Failed to remove member');
+		Alert.alert('Remove Member', 'Are you sure you want to remove this member from the group?', [
+			{ text: 'Cancel', style: 'cancel' },
+			{
+				text: 'Remove',
+				style: 'destructive',
+				onPress: async () => {
+					try {
+						const response = (await dispatch(removeMemberFromGroupService(user, roomId, memberUid))) as any;
+						if (!response?.success) {
+							throw new Error(response?.error || 'Failed to remove member');
 						}
+
+						updateUserRoomLocally((rooms) =>
+							rooms.map((room) =>
+								room.roomId === roomId
+									? {
+											...room,
+											members: (room.members || []).filter((uid) => uid !== memberUid),
+										}
+									: room
+							)
+						);
+
+						Alert.alert('Success', 'Member removed successfully!');
+					} catch (error) {
+						Alert.alert('Error', getErrorMessage(error, 'Failed to remove member'));
 					}
-				}
-			]
-		);
+				},
+			},
+		]);
 	};
 
 	const handleDeleteGroup = async () => {
-		if (!user) {
+		if (!user || !roomId) {
 			Alert.alert('Error', 'User not found');
 			return;
 		}
 
-		if (!roomId) return;
-
-		Alert.alert(
-			'Delete Group',
-			'Are you sure you want to delete this group? This action cannot be undone.',
-			[
-				{ text: 'Cancel', style: 'cancel' },
-				{
-					text: 'Delete',
-					style: 'destructive',
-					onPress: async () => {
-						try {
-							router.back();
-							const response = await dispatch(deleteGroupService(user, roomId)) as any;
-							if (response.success) {
-								// Update user context to remove the room immediately
-								try {
-									if (user && Array.isArray(user.rooms)) {
-										const nextRooms = user.rooms.filter(r => r.roomId !== roomId);
-										updateUser({ rooms: nextRooms });
-									}
-								} catch {}
-								Alert.alert('Success', 'Group deleted successfully!', [
-									{ text: 'OK', onPress: () => {
-										onClose();
-									}}
-								]);
-							} else {
-								Alert.alert('Error', 'Failed to delete group');
-							}
-						} catch (error) {
-							Alert.alert('Error', 'Failed to delete group');
+		Alert.alert('Delete Group', 'Are you sure you want to delete this group? This action cannot be undone.', [
+			{ text: 'Cancel', style: 'cancel' },
+			{
+				text: 'Delete',
+				style: 'destructive',
+				onPress: async () => {
+					try {
+						router.back();
+						const response = (await dispatch(deleteGroupService(user, roomId))) as any;
+						if (!response?.success) {
+							throw new Error(response?.error || 'Failed to delete group');
 						}
+
+						updateUser({ rooms: (user.rooms || []).filter((room) => room.roomId !== roomId) });
+
+						Alert.alert('Success', 'Group deleted successfully!', [
+							{
+								text: 'OK',
+								onPress: () => {
+									onClose();
+								},
+							},
+						]);
+					} catch (error) {
+						Alert.alert('Error', getErrorMessage(error, 'Failed to delete group'));
 					}
-				}
-			]
-		);
-	};
-
-	const searchUsers = async () => {
-		if (!searchQuery.trim()) return;
-
-		setIsSearching(true);
-		try {
-			// This would typically call your search API
-			// For now, we'll use the friend list
-			const results = user?.friend_list?.filter(friend => 
-				friend.name.toLowerCase().includes(searchQuery.toLowerCase()) &&
-				!selectedMembers.includes(friend.uid) &&
-				!groupMembers.includes(friend.uid)
-			) || [];
-			setSearchResults(results);
-		} catch (error) {
-			Alert.alert('Error', 'Failed to search users');
-		} finally {
-			setIsSearching(false);
-		}
+				},
+			},
+		]);
 	};
 
 	const toggleMemberSelection = (uid: string) => {
-		setSelectedMembers(prev => 
-			prev.includes(uid) 
-				? prev.filter(id => id !== uid)
-				: [...prev, uid]
+		setSelectedMembers((previous) =>
+			previous.includes(uid) ? previous.filter((id) => id !== uid) : [...previous, uid]
 		);
-	};
-
-	const getMemberName = (uid: string) => {
-		const friend = user?.friend_list?.find(f => f.uid == uid);
-		return friend?.name || 'Unknown User';
-	};
-
-	const getMemberPhoto = (uid: string) => {
-		const friend = user?.friend_list?.find(f => f.uid == uid);
-		return friend?.photo_url || '';
 	};
 
 	return (
 		<Portal>
 			<Modal
-				visible={true}
+				visible
 				onDismiss={onClose}
 				contentContainerStyle={{
 					backgroundColor: colors.surface,
 					margin: 20,
 					borderRadius: 16,
 					maxHeight: '90%',
-					flex: 1
+					flex: 1,
 				}}
 			>
 				<SafeAreaView style={{ flex: 1 }}>
-					<View style={{ 
-						flexDirection: 'row', 
-						alignItems: 'center', 
-						justifyContent: 'space-between', 
-						padding: 16, 
-						borderBottomWidth: 1, 
-						borderBottomColor: colors.border 
-					}}>
-						<Text style={{ 
-							fontSize: 20, 
-							fontWeight: 'bold', 
-							color: colors.text 
-						}}>
+					<View
+						style={{
+							flexDirection: 'row',
+							alignItems: 'center',
+							justifyContent: 'space-between',
+							padding: 16,
+							borderBottomWidth: 1,
+							borderBottomColor: colors.border,
+						}}
+					>
+						<Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text }}>
 							{isEditMode ? 'Edit Group' : 'Create Group'}
 						</Text>
-						<IconButton
-							icon="close"
-							onPress={onClose}
-							iconColor={colors.textSecondary}
-						/>
+						<IconButton icon="close" onPress={onClose} iconColor={colors.textSecondary} />
 					</View>
 
-					<ScrollView className="flex-1 p-4" showsVerticalScrollIndicator={false}>
-						{/* Group Name */}
-						<View className="mb-6">
-							<Text style={{ 
-								fontSize: 16, 
-								fontWeight: '600', 
-								color: colors.text, 
-								marginBottom: 8 
-							}}>
+					<ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
+						<View style={{ alignItems: 'center', marginBottom: 24 }}>
+							<View style={{ position: 'relative' }}>
+								<Avatar.Image
+									size={88}
+									source={{ uri: groupPhotoUri || 'https://ui-avatars.com/api/?name=Group' }}
+								/>
+								{isUploadingPhoto && (
+									<View
+										style={{
+											position: 'absolute',
+											inset: 0,
+											alignItems: 'center',
+											justifyContent: 'center',
+											backgroundColor: 'rgba(0,0,0,0.35)',
+											borderRadius: 44,
+										}}
+									>
+										<ActivityIndicator size="small" color="#fff" />
+									</View>
+								)}
+							</View>
+							<Button mode="text" onPress={pickGroupPhoto} icon="image-edit-outline" style={{ marginTop: 8 }}>
+								Change Photo
+							</Button>
+						</View>
+
+						<View style={{ marginBottom: 24 }}>
+							<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>
 								Group Name
 							</Text>
 							<TextInput
@@ -316,109 +399,65 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 							/>
 						</View>
 
-						{/* Group Members (Edit Mode) */}
-						{isEditMode && (
-							<View className="mb-6">
-								<View className="flex-row items-center justify-between mb-3">
-									<Text style={{ 
-										fontSize: 16, 
-										fontWeight: '600', 
-										color: colors.text 
-									}}>
+						{isEditMode ? (
+							<View style={{ marginBottom: 24 }}>
+								<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+									<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>
 										Group Members ({groupMembers.length})
 									</Text>
-									<Button
-										mode="outlined"
-										onPress={() => setShowMemberSearch(true)}
-										icon="account-plus"
-										compact
-									>
+									<Button mode="outlined" onPress={() => setShowMemberSearch(true)} icon="account-plus" compact>
 										Add
 									</Button>
 								</View>
 
-								<View className="flex-row flex-wrap gap-2">
-									{groupMembers.map(uid => (
-										<Card key={uid} style={{ 
-											padding: 8, 
-											marginBottom: 8, 
-											backgroundColor: colors.surface 
-										}}>
-											<View className="flex-row items-center gap-2">
-												<Avatar.Image 
-													size={32} 
-													source={{ uri: getMemberPhoto(uid) }} 
-												/>
-												<Text style={{ 
-													flex: 1, 
-													color: colors.text 
-												}}>{getMemberName(uid)}</Text>
-												<IconButton
-													icon="close"
-													size={16}
-													onPress={() => handleRemoveMember(uid)}
-													iconColor="#ef4444"
-												/>
+								<View style={{ gap: 8 }}>
+									{groupMembers.map((uid) => (
+										<Card key={uid} style={{ backgroundColor: colors.surface }}>
+											<View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+												<Avatar.Image size={36} source={{ uri: getMemberPhoto(uid) }} />
+												<Text style={{ flex: 1, color: colors.text, marginLeft: 12 }}>{getMemberName(uid)}</Text>
+												<IconButton icon="close" size={18} onPress={() => handleRemoveMember(uid)} iconColor="#ef4444" />
 											</View>
 										</Card>
 									))}
 								</View>
 							</View>
-						)}
-
-						{/* Selected Members (Create Mode) */}
-						{!isEditMode && (
-							<View className="mb-6">
-								<View className="flex-row items-center justify-between mb-3">
-									<Text style={{ 
-										fontSize: 16, 
-										fontWeight: '600', 
-										color: colors.text 
-									}}>
+						) : (
+							<View style={{ marginBottom: 24 }}>
+								<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+									<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>
 										Selected Members ({selectedMembers.length})
 									</Text>
-									<Button
-										mode="outlined"
-										onPress={() => setShowMemberSearch(true)}
-										icon="account-plus"
-										compact
-									>
+									<Button mode="outlined" onPress={() => setShowMemberSearch(true)} icon="account-plus" compact>
 										Add
 									</Button>
 								</View>
 
-								<View className="flex-row flex-wrap gap-2">
-									{selectedMembers.map(uid => (
-										<Chip
-											key={uid}
-											onClose={() => toggleMemberSelection(uid)}
-											avatar={<Avatar.Image size={24} source={{ uri: getMemberPhoto(uid) }} />}
-										>
-											{getMemberName(uid)}
-										</Chip>
-									))}
+								<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+									{selectedMembers.length === 0 ? (
+										<Text style={{ color: colors.textSecondary }}>Choose at least one friend to start the group.</Text>
+									) : (
+										selectedMembers.map((uid) => (
+											<Chip
+												key={uid}
+												onClose={() => toggleMemberSelection(uid)}
+												avatar={<Avatar.Image size={24} source={{ uri: getMemberPhoto(uid) }} />}
+											>
+												{getMemberName(uid)}
+											</Chip>
+										))
+									)}
 								</View>
 							</View>
 						)}
 
-						{/* Action Buttons */}
-						<View className="gap-3">
+						<View style={{ gap: 12 }}>
 							{isEditMode ? (
 								<>
-									<Button
-										mode="contained"
-										onPress={handleUpdateGroup}
-										loading={isUpdating}
-										disabled={isUpdating}
-									>
-										Update Group
+									<Button mode="contained" onPress={handleUpdateGroup} loading={isUpdating} disabled={isUpdating || isUploadingPhoto}>
+										Save Changes
 									</Button>
-									<Button
-										mode="outlined"
-										onPress={handleDeleteGroup}
-										buttonColor="#fef2f2"
-										textColor="#dc2626"
-									>
+									<Button mode="outlined" onPress={handleDeleteGroup} buttonColor="#fef2f2" textColor="#dc2626">
 										Delete Group
 									</Button>
 								</>
@@ -427,7 +466,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 									mode="contained"
 									onPress={handleCreateGroup}
 									loading={isCreating}
-									disabled={isCreating || !groupName.trim() || selectedMembers.length === 0}
+									disabled={isCreating || isUploadingPhoto || !groupName.trim() || selectedMembers.length === 0}
 								>
 									Create Group
 								</Button>
@@ -436,7 +475,6 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 					</ScrollView>
 				</SafeAreaView>
 
-				{/* Member Search Modal */}
 				<Portal>
 					<Modal
 						visible={showMemberSearch}
@@ -445,82 +483,61 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 							backgroundColor: colors.surface,
 							margin: 20,
 							borderRadius: 16,
-							maxHeight: '80%'
+							maxHeight: '80%',
 						}}
 					>
-						<View className="p-4">
-							<View className="flex-row items-center justify-between mb-4">
-								<Text style={{ 
-									fontSize: 20, 
-									fontWeight: 'bold', 
-									color: colors.text 
-								}}>
-									Add Members
+						<View style={{ padding: 16 }}>
+							<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+								<Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text }}>
+									{isEditMode ? 'Add Members' : 'Choose Members'}
 								</Text>
-								<IconButton
-									icon="close"
-									onPress={() => setShowMemberSearch(false)}
-									iconColor={colors.textSecondary}
-								/>
+								<IconButton icon="close" onPress={() => setShowMemberSearch(false)} iconColor={colors.textSecondary} />
 							</View>
 
 							<Searchbar
-								placeholder="Search friends..."
+								placeholder="Search friends"
 								value={searchQuery}
 								onChangeText={setSearchQuery}
-								onSubmitEditing={searchUsers}
-								className="mb-4"
+								style={{ marginBottom: 16 }}
 							/>
 
 							<ScrollView showsVerticalScrollIndicator={false}>
-								{availableFriends.map(friend => (
-									<Card
-										key={friend.uid}
-										style={{ 
-											marginBottom: 8, 
-											backgroundColor: colors.surface 
-										}}
-										onPress={() => toggleMemberSelection(friend.uid)}
-									>
-										<View className="flex-row items-center p-3">
-											<Avatar.Image 
-												size={40} 
-												source={{ uri: friend.photo_url }} 
-											/>
-											<View className="flex-1 ml-3">
-												<Text style={{ 
-													fontSize: 16, 
-													fontWeight: '500', 
-													color: colors.text 
-												}}>{friend.name}</Text>
-												<Text style={{ 
-													fontSize: 12, 
-													color: colors.textSecondary 
-												}}>
-													{friend.email}
-												</Text>
+								{filteredFriends.length === 0 ? (
+									<View style={{ paddingVertical: 24, alignItems: 'center', gap: 8 }}>
+										<Icon source="account-search-outline" size={32} color={colors.textSecondary} />
+										<Text style={{ color: colors.textSecondary }}>
+											{availableFriends.length === 0 ? 'No more friends available to add.' : 'No matching friends found.'}
+										</Text>
+									</View>
+								) : (
+									filteredFriends.map((friend: TUser) => (
+										<Card
+											key={friend.uid}
+											style={{ marginBottom: 8, backgroundColor: colors.surface }}
+											onPress={() => toggleMemberSelection(friend.uid)}
+										>
+											<View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+												<Avatar.Image size={40} source={{ uri: friend.photo_url }} />
+												<View style={{ flex: 1, marginLeft: 12 }}>
+													<Text style={{ fontSize: 16, fontWeight: '500', color: colors.text }}>{friend.name}</Text>
+													<Text style={{ fontSize: 12, color: colors.textSecondary }}>{friend.email}</Text>
+												</View>
+												{selectedMembers.includes(friend.uid) && <Icon source="check-circle" size={24} color={colors.primary} />}
 											</View>
-											{selectedMembers.includes(friend.uid) && (
-												<Icon source="check" size={24} color="#10b981" />
-											)}
-										</View>
-									</Card>
-								))}
+										</Card>
+									))
+								)}
 							</ScrollView>
 
-							<View className="flex-row gap-3 mt-4">
-								<Button
-									mode="outlined"
-									onPress={() => setShowMemberSearch(false)}
-									className="flex-1"
-								>
+							<View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
+								<Button mode="outlined" onPress={() => setShowMemberSearch(false)} style={{ flex: 1 }}>
 									Cancel
 								</Button>
 								<Button
 									mode="contained"
 									onPress={isEditMode ? handleAddMembers : () => setShowMemberSearch(false)}
 									disabled={selectedMembers.length === 0}
-									className="flex-1"
+									style={{ flex: 1 }}
 								>
 									{isEditMode ? 'Add Members' : 'Done'}
 								</Button>

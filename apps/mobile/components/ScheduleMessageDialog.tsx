@@ -1,22 +1,21 @@
-import React, { useState } from 'react';
-import { View, Alert, Platform } from 'react-native';
-import { 
-  Dialog, 
-  Portal, 
-  Text, 
-  TextInput, 
-  Button, 
-  Card, 
-  RadioButton, 
+import React, { useState } from "react";
+import { View, Alert, Platform } from "react-native";
+import {
+  Dialog,
+  Portal,
+  Text,
+  TextInput,
+  Button,
+  Card,
+  RadioButton,
   Chip,
-  IconButton,
-  useTheme
-} from 'react-native-paper';
-import DateTimePicker from '@react-native-community/datetimepicker';
-import { useAppDispatch, useAppSelector } from '~/redux/store';
-import { scheduleMessage } from '~/redux/socketSlice';
-import { CreateScheduledMessageRequest } from '~/lib/types';
-import { useUser } from '~/app/providers';
+  useTheme,
+} from "react-native-paper";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import { useAppDispatch } from "~/redux/store";
+import { scheduleMessage } from "~/redux/socketSlice";
+import { CreateScheduledMessageRequest } from "~/lib/types";
+import { useUser } from "~/app/providers";
 
 interface ScheduleMessageDialogProps {
   visible: boolean;
@@ -25,38 +24,43 @@ interface ScheduleMessageDialogProps {
   initialMessage?: string;
 }
 
-export default function ScheduleMessageDialog({ 
-  visible, 
-  onDismiss, 
-  roomId, 
-  initialMessage = '' 
+export default function ScheduleMessageDialog({
+  visible,
+  onDismiss,
+  roomId,
+  initialMessage = "",
 }: ScheduleMessageDialogProps) {
   const dispatch = useAppDispatch();
   const theme = useTheme();
   const { user } = useUser();
-  
+
   const [message, setMessage] = useState(initialMessage);
-  const [scheduledDateTime, setScheduledDateTime] = useState(new Date(Date.now() + 60 * 60 * 1000)); // Default to 1 hour from now
+  const [scheduledDateTime, setScheduledDateTime] = useState(
+    new Date(Date.now() + 60 * 60 * 1000),
+  );
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [isRecurring, setIsRecurring] = useState(false);
-  const [recurringPattern, setRecurringPattern] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [recurringPattern, setRecurringPattern] = useState<
+    "daily" | "weekly" | "monthly"
+  >("daily");
   const [isLoading, setIsLoading] = useState(false);
+
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
   const handleSchedule = async () => {
     if (!message.trim()) {
-      Alert.alert('Error', 'Please enter a message');
+      Alert.alert("Error", "Please enter a message");
       return;
     }
 
     if (!user) {
-      Alert.alert('Error', 'User not found');
+      Alert.alert("Error", "User not found");
       return;
     }
 
-    const now = new Date();
-    if (scheduledDateTime <= now) {
-      Alert.alert('Error', 'Scheduled time must be in the future');
+    if (scheduledDateTime <= new Date()) {
+      Alert.alert("Error", "Scheduled time must be in the future");
       return;
     }
 
@@ -67,67 +71,75 @@ export default function ScheduleMessageDialog({
         roomId,
         userUid: user.uid,
         message: message.trim(),
-        messageType: 'text',
+        messageType: "text",
         scheduledTime: scheduledDateTime.toISOString(),
         recurring: isRecurring,
         recurringPattern: isRecurring ? recurringPattern : undefined,
-        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        timezone,
       };
 
       dispatch(scheduleMessage(request));
-      
-      Alert.alert('Success', 'Message scheduled successfully!');
+      Alert.alert("Success", "Message scheduled successfully.");
       handleClose();
     } catch (error) {
-      console.error('Error scheduling message:', error);
-      Alert.alert('Error', 'Failed to schedule message');
+      console.error("Error scheduling message:", error);
+      Alert.alert("Error", "Failed to schedule message");
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleClose = () => {
-    setMessage('');
+    setMessage("");
     setScheduledDateTime(new Date(Date.now() + 60 * 60 * 1000));
     setShowDatePicker(false);
     setShowTimePicker(false);
     setIsRecurring(false);
-    setRecurringPattern('daily');
+    setRecurringPattern("daily");
     onDismiss();
   };
 
   const handleDateChange = (event: any, selectedDate?: Date) => {
-    setShowDatePicker(Platform.OS === 'ios');
+    setShowDatePicker(Platform.OS === "ios");
     if (selectedDate) {
-      const newDateTime = new Date(scheduledDateTime);
-      newDateTime.setFullYear(selectedDate.getFullYear());
-      newDateTime.setMonth(selectedDate.getMonth());
-      newDateTime.setDate(selectedDate.getDate());
-      setScheduledDateTime(newDateTime);
+      const nextDate = new Date(scheduledDateTime);
+      nextDate.setFullYear(selectedDate.getFullYear());
+      nextDate.setMonth(selectedDate.getMonth());
+      nextDate.setDate(selectedDate.getDate());
+      setScheduledDateTime(nextDate);
     }
   };
 
   const handleTimeChange = (event: any, selectedTime?: Date) => {
-    setShowTimePicker(Platform.OS === 'ios');
+    setShowTimePicker(Platform.OS === "ios");
     if (selectedTime) {
-      const newDateTime = new Date(scheduledDateTime);
-      newDateTime.setHours(selectedTime.getHours());
-      newDateTime.setMinutes(selectedTime.getMinutes());
-      setScheduledDateTime(newDateTime);
+      const nextDate = new Date(scheduledDateTime);
+      nextDate.setHours(selectedTime.getHours());
+      nextDate.setMinutes(selectedTime.getMinutes());
+      setScheduledDateTime(nextDate);
     }
   };
 
-  const formatDateTime = (date: Date) => {
-    return date.toLocaleDateString() + ' at ' + date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  };
+  const formatDateTime = (date: Date) =>
+    new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(date);
 
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={handleClose} style={{ maxHeight: '80%' }}>
+      <Dialog
+        visible={visible}
+        onDismiss={handleClose}
+        style={{ maxHeight: "80%" }}
+      >
         <Dialog.Title>Schedule Message</Dialog.Title>
         <Dialog.ScrollArea>
           <View style={{ padding: 20, gap: 16 }}>
-            {/* Message Input */}
             <TextInput
               label="Message"
               value={message}
@@ -137,18 +149,16 @@ export default function ScheduleMessageDialog({
               placeholder="Enter your message..."
             />
 
-            {/* Date and Time Selection */}
             <View style={{ gap: 12 }}>
               <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
-                Scheduled Date & Time
+                Scheduled Date and Time
               </Text>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
+              <View style={{ flexDirection: "row", gap: 12 }}>
                 <View style={{ flex: 1 }}>
                   <Button
                     mode="outlined"
                     onPress={() => setShowDatePicker(true)}
                     icon="calendar"
-                    style={{ justifyContent: 'flex-start' }}
                   >
                     {scheduledDateTime.toLocaleDateString()}
                   </Button>
@@ -158,20 +168,27 @@ export default function ScheduleMessageDialog({
                     mode="outlined"
                     onPress={() => setShowTimePicker(true)}
                     icon="clock"
-                    style={{ justifyContent: 'flex-start' }}
                   >
-                    {scheduledDateTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    {scheduledDateTime.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
                   </Button>
                 </View>
               </View>
             </View>
 
-            {/* Recurring Options */}
             <Card style={{ padding: 16 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
+              <View
+                style={{
+                  flexDirection: "row",
+                  alignItems: "center",
+                  marginBottom: 12,
+                }}
+              >
                 <RadioButton
                   value="recurring"
-                  status={isRecurring ? 'checked' : 'unchecked'}
+                  status={isRecurring ? "checked" : "unchecked"}
                   onPress={() => setIsRecurring(!isRecurring)}
                 />
                 <Text variant="bodyLarge" style={{ marginLeft: 8 }}>
@@ -184,12 +201,18 @@ export default function ScheduleMessageDialog({
                   <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
                     Repeat every:
                   </Text>
-                  <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-                    {['daily', 'weekly', 'monthly'].map((pattern) => (
+                  <View
+                    style={{ flexDirection: "row", gap: 8, flexWrap: "wrap" }}
+                  >
+                    {["daily", "weekly", "monthly"].map((pattern) => (
                       <Chip
                         key={pattern}
                         selected={recurringPattern === pattern}
-                        onPress={() => setRecurringPattern(pattern as any)}
+                        onPress={() =>
+                          setRecurringPattern(
+                            pattern as "daily" | "weekly" | "monthly",
+                          )
+                        }
                         style={{ marginBottom: 4 }}
                       >
                         {pattern.charAt(0).toUpperCase() + pattern.slice(1)}
@@ -200,20 +223,33 @@ export default function ScheduleMessageDialog({
               )}
             </Card>
 
-            {/* Preview */}
-            <Card style={{ padding: 16, backgroundColor: theme.colors.surfaceVariant }}>
+            <Card
+              style={{
+                padding: 16,
+                backgroundColor: theme.colors.surfaceVariant,
+              }}
+            >
               <Text variant="bodyMedium" style={{ marginBottom: 8 }}>
-                Preview:
+                Preview
               </Text>
               <Text variant="bodySmall" style={{ marginBottom: 4 }}>
-                <Text style={{ fontWeight: 'bold' }}>Message:</Text> {message || 'No message'}
+                <Text style={{ fontWeight: "bold" }}>Message:</Text>{" "}
+                {message || "No message"}
               </Text>
               <Text variant="bodySmall" style={{ marginBottom: 4 }}>
-                <Text style={{ fontWeight: 'bold' }}>Scheduled for:</Text> {formatDateTime(scheduledDateTime)}
+                <Text style={{ fontWeight: "bold" }}>Scheduled for:</Text>{" "}
+                {formatDateTime(scheduledDateTime)}
+              </Text>
+              <Text
+                variant="bodySmall"
+                style={{ marginBottom: isRecurring ? 4 : 0 }}
+              >
+                <Text style={{ fontWeight: "bold" }}>Timezone:</Text> {timezone}
               </Text>
               {isRecurring && (
                 <Text variant="bodySmall">
-                  <Text style={{ fontWeight: 'bold' }}>Recurring:</Text> {recurringPattern}
+                  <Text style={{ fontWeight: "bold" }}>Repeats:</Text>{" "}
+                  {recurringPattern}
                 </Text>
               )}
             </Card>
@@ -223,8 +259,8 @@ export default function ScheduleMessageDialog({
           <Button onPress={handleClose} disabled={isLoading}>
             Cancel
           </Button>
-          <Button 
-            mode="contained" 
+          <Button
+            mode="contained"
             onPress={handleSchedule}
             loading={isLoading}
             disabled={!message.trim()}
@@ -234,27 +270,24 @@ export default function ScheduleMessageDialog({
         </Dialog.Actions>
       </Dialog>
 
-      {/* Date Picker */}
       {showDatePicker && (
         <DateTimePicker
           value={scheduledDateTime}
           mode="date"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
           onChange={handleDateChange}
           minimumDate={new Date()}
         />
       )}
 
-      {/* Time Picker */}
       {showTimePicker && (
         <DateTimePicker
           value={scheduledDateTime}
           mode="time"
-          display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+          display={Platform.OS === "ios" ? "spinner" : "default"}
           onChange={handleTimeChange}
         />
       )}
     </Portal>
   );
 }
-

@@ -35,7 +35,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
-import { uploadFile } from '~/lib/utils';
+import { formatLastSeen, uploadFile } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import { useToast } from '~/components/Toast';
 import GlassSurface from '~/components/GlassSurface';
@@ -207,20 +207,6 @@ export default function Room() {
 		return friend?.name || 'Unknown User';
 	};
 
-	const formatLastSeen = (input: string | number | null) => {
-		if (!input) return '';
-		const date = new Date(input);
-		const now = new Date();
-		const diffMs = now.getTime() - date.getTime();
-		const minutes = Math.floor(diffMs / 60000);
-		if (minutes < 1) return 'just now';
-		if (minutes < 60) return `${minutes} min ago`;
-		const hours = Math.floor(minutes / 60);
-		if (hours < 24) return `${hours} hr${hours > 1 ? 's' : ''} ago`;
-		const days = Math.floor(hours / 24);
-		return `${days} day${days > 1 ? 's' : ''} ago`;
-	};
-
 	const sendMessage = () => {
 		if (input.trim() == '' || input == null) return;
 		if (!user || activeChatRoomId == '') return;
@@ -290,10 +276,9 @@ export default function Room() {
 
 	async function handleRotateKeys() {
 		try {
-			import('~/lib/device-manager').then((deviceManager) => {
-				deviceManager.rotateSigningKeyPair();
-				showToast({ message: 'E2EE keys rotated successfully!', type: 'success' });
-			});
+			const deviceManager = await import('~/lib/device-manager');
+			await deviceManager.rotateSigningKeyPair();
+			showToast({ message: 'E2EE keys rotated successfully!', type: 'success' });
 		} catch (error) {
 			console.error('Failed to rotate keys:', error);
 			showToast({ message: 'Failed to rotate E2EE keys', type: 'error' });
@@ -338,22 +323,6 @@ export default function Room() {
 		});
 		if (!result.canceled && result.assets[0]) {
 			handleFileUpload(result.assets[0].uri, result.assets[0].fileName || 'image.jpg', 'image');
-		}
-	};
-
-	const takePhoto = async () => {
-		setAttachMenuVisible(false);
-		const { status } = await ImagePicker.requestCameraPermissionsAsync();
-		if (status !== 'granted') {
-			Alert.alert('Permission needed', 'Please grant camera permissions');
-			return;
-		}
-		const result = await ImagePicker.launchCameraAsync({
-			quality: 0.8,
-			allowsEditing: false,
-		});
-		if (!result.canceled && result.assets[0]) {
-			handleFileUpload(result.assets[0].uri, 'photo.jpg', 'image');
 		}
 	};
 
@@ -457,18 +426,6 @@ export default function Room() {
 							</TouchableOpacity>
 
 							<View style={styles.headerActions}>
-								<IconButton
-									icon="phone"
-									size={22}
-									iconColor={colors.text}
-									onPress={() => showToast({ message: 'Voice call coming soon!', type: 'coming-soon' })}
-								/>
-								<IconButton
-									icon="video"
-									size={22}
-									iconColor={colors.text}
-									onPress={() => showToast({ message: 'Video call coming soon!', type: 'coming-soon' })}
-								/>
 								{e2eeError && (
 									<IconButton
 										icon="refresh"
@@ -644,7 +601,6 @@ export default function Room() {
 								}
 								contentStyle={{ backgroundColor: colors.surface }}
 							>
-								<Menu.Item onPress={takePhoto} title="Camera" leadingIcon="camera" />
 								<Menu.Item onPress={pickImage} title="Gallery" leadingIcon="image" />
 								<Menu.Item onPress={pickDocument} title="Document" leadingIcon="file" />
 							</Menu>
@@ -665,13 +621,6 @@ export default function Room() {
 									activeUnderlineColor="transparent"
 									textColor={colors.text}
 									placeholderTextColor={colors.textSecondary}
-								/>
-								<IconButton
-									icon="camera-outline"
-									size={22}
-									iconColor={colors.textSecondary}
-									onPress={takePhoto}
-									disabled={uploading || userIsOffline}
 								/>
 								{!isAIRoom && memberPublicKeys && Object.keys(memberPublicKeys).length > 0 && (
 									<IconButton

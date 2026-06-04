@@ -2,12 +2,14 @@ import { ChatDate, ChatMessage, TRoomData, PresenceUpdate } from "../lib/types";
 import { decryptChatMessage, formatChatMessages } from "../lib/utils";
 import { createSlice } from "@reduxjs/toolkit";
 import type { PayloadAction } from '@reduxjs/toolkit'
-import { offlineStorage } from '../lib/offlineStorage';
 
 export interface IChatState {
 	activeChatRoomId: string,
 	rooms: {
 		[roomId: string]: TRoomData
+	},
+	unreadCounts: {
+		[roomId: string]: number
 	},
 	userPresence: {
 		[uid: string]: {
@@ -21,6 +23,7 @@ export interface IChatState {
 const initialState: IChatState = {
 	activeChatRoomId: '',
 	rooms: {},
+	unreadCounts: {},
 	userPresence: {},
 	isOffline: false
 }
@@ -35,10 +38,14 @@ export const chatSlice = createSlice({
 			const decryptedMessages = (roomData.messages || []).map((message) =>
 				isChatMessage(message) ? decryptChatMessage(message) : message
 			);
+			const decryptedSavedMessages = (roomData.saved_messages || []).map((message) =>
+				isChatMessage(message) ? decryptChatMessage(message) : message
+			);
 			state.rooms[roomData.roomId] = {
 				is_group: roomData.is_group,
 				is_ai_room: roomData.is_ai_room,
 				messages: formatChatMessages(decryptedMessages),
+				saved_messages: decryptedSavedMessages,
 				name: roomData.name,
 				photo_url: roomData.photo_url,
 				roomId: roomData.roomId,
@@ -47,6 +54,7 @@ export const chatSlice = createSlice({
 				isLoadingMore: false,
 				members: roomData.members,
 			}
+			state.unreadCounts[roomData.roomId] = state.unreadCounts[roomData.roomId] || 0;
 			roomData.membersData?.forEach(member => {
 				state.userPresence[member.uid] = {
 					is_online: member.is_online || false,
@@ -56,10 +64,14 @@ export const chatSlice = createSlice({
 		},
 		setActiveRoomId: (state, action: PayloadAction<string>) => {
 			state.activeChatRoomId = action.payload
+			if (action.payload) {
+				state.unreadCounts[action.payload] = 0;
+			}
 		},
-	addMessage: (state, action: PayloadAction<ChatMessage>) => {
-		const decryptedMessage = decryptChatMessage(action.payload);
-		const chatMessages = state.rooms[decryptedMessage.roomId].messages;
+		addMessage: (state, action: PayloadAction<{ message: ChatMessage; currentUserUid?: string }>) => {
+			const { message, currentUserUid } = action.payload;
+			const decryptedMessage = decryptChatMessage(message);
+			const chatMessages = state.rooms[decryptedMessage.roomId].messages;
 
 		// Check for duplicates using id
 		if(chatMessages.findIndex(msg => !msg.isDate && msg.id == decryptedMessage.id) != -1) return state;
@@ -96,6 +108,14 @@ export const chatSlice = createSlice({
 			}
 
 			state.rooms[decryptedMessage.roomId].messages = [...chatMessages, decryptedMessage]
+			if (
+				currentUserUid &&
+				decryptedMessage.userUid !== currentUserUid &&
+				state.activeChatRoomId !== decryptedMessage.roomId
+			) {
+				state.unreadCounts[decryptedMessage.roomId] =
+					(state.unreadCounts[decryptedMessage.roomId] || 0) + 1;
+			}
 		},
 		addChatDoc: (state, action: PayloadAction<{ messages: ChatMessage[], roomId: string }>) => {
 			const formattedMessages = formatChatMessages(action.payload.messages);
@@ -166,8 +186,8 @@ export const chatSlice = createSlice({
 			state.rooms[roomId].hasMoreMessages = hasMore;
 			state.rooms[roomId].isLoadingMore = false;
 		},
-		clearRoomData: (state) => {
-			state = initialState;
+		clearRoomData: () => {
+			return initialState;
 		},
 	editMessageInChat: (state, action: PayloadAction<{ roomId: string; id: string; chatDocId: string; newText: string }>) => {
 		const { roomId, id, newText } = action.payload;
@@ -263,6 +283,7 @@ export const chatSlice = createSlice({
 			state.rooms[roomData.roomId] = {
 				is_group: true,
 				messages: [],
+				saved_messages: [],
 				name: roomData.name,
 				photo_url: roomData.photo_url,
 				roomId: roomData.roomId,
@@ -284,9 +305,38 @@ export const chatSlice = createSlice({
 				if (photo_url) state.rooms[roomId].photo_url = photo_url;
 			}
 		},
+		saveChatMessage: (state, action: PayloadAction<{ roomId: string; id: string | number }>) => {
+			const currentRoom = state.rooms[action.payload.roomId];
+			if (!currentRoom) return;
+
+			const messages = currentRoom.messages;
+			const savedMessages = currentRoom.saved_messages || [];
+			const reqIdx = messages.findIndex((msg) => !msg.isDate && msg.id == action.payload.id);
+			if (reqIdx === -1) return;
+
+			const targetMessage = messages[reqIdx];
+			if (targetMessage.isDate) return;
+
+			const isMsgSaved = targetMessage.isMsgSaved || false;
+
+			if (isMsgSaved) {
+				targetMessage.isMsgSaved = false;
+				const reqSavedMsgIdx = savedMessages.findIndex((msg) => !msg.isDate && msg.id == action.payload.id);
+				if (reqSavedMsgIdx !== -1) {
+					savedMessages.splice(reqSavedMsgIdx, 1);
+				}
+			} else {
+				targetMessage.isMsgSaved = true;
+				savedMessages.push(targetMessage);
+			}
+
+			currentRoom.messages = [...messages];
+			currentRoom.saved_messages = [...savedMessages];
+		},
 		removeGroupRoom: (state, action: PayloadAction<string>) => {
 			const roomId = action.payload;
 			delete state.rooms[roomId];
+			delete state.unreadCounts[roomId];
 			if (state.activeChatRoomId === roomId) {
 				state.activeChatRoomId = '';
 			}
@@ -377,6 +427,7 @@ export const {
 	addGroupRoom,
 	updateGroupMembers,
 	updateGroupInfo,
+	saveChatMessage,
 	removeGroupRoom,
 	updateUserPresence,
 	updateMultipleUserPresence,

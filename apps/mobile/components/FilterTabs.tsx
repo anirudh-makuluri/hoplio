@@ -3,32 +3,20 @@ import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useTheme } from '~/lib/themeContext';
 
-export type FilterType = 'all' | 'favorites' | 'work' | 'groups' | 'communities';
+export type FilterType = 'all' | 'groups';
 
 interface FilterTabsProps {
 	activeFilter: FilterType;
 	onFilterChange: (filter: FilterType) => void;
-	onComingSoon?: () => void;
 }
 
-export default function FilterTabs({ activeFilter, onFilterChange, onComingSoon }: FilterTabsProps) {
+export default function FilterTabs({ activeFilter, onFilterChange }: FilterTabsProps) {
 	const { colors, isDark } = useTheme();
 
-	const filters: { id: FilterType; label: string; implemented: boolean }[] = [
-		{ id: 'all', label: 'All', implemented: true },
-		{ id: 'favorites', label: 'Favorites', implemented: false },
-		{ id: 'work', label: 'Work', implemented: false },
-		{ id: 'groups', label: 'Groups', implemented: true },
-		{ id: 'communities', label: 'Communities', implemented: false },
+	const filters: { id: FilterType; label: string }[] = [
+		{ id: 'all', label: 'All' },
+		{ id: 'groups', label: 'Groups' },
 	];
-
-	const handlePress = (filter: { id: FilterType; implemented: boolean }) => {
-		if (filter.implemented) {
-			onFilterChange(filter.id);
-		} else if (onComingSoon) {
-			onComingSoon();
-		}
-	};
 
 	return (
 		<View style={[styles.container, { borderBottomColor: colors.border }]}>
@@ -53,7 +41,7 @@ export default function FilterTabs({ activeFilter, onFilterChange, onComingSoon 
 									borderColor: isActive ? colors.primary : 'transparent',
 								},
 							]}
-							onPress={() => handlePress(filter)}
+							onPress={() => onFilterChange(filter.id)}
 							activeOpacity={0.7}
 						>
 							<Text

@@ -85,7 +85,7 @@ export default function Settings() {
 								style={{ borderWidth: 4, borderColor: colors.border }}
 							/>
 							<IconButton
-								icon="camera"
+								icon="image-edit-outline"
 								size={20}
 								onPress={handleImagePicker}
 								disabled={isUploading}

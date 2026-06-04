@@ -1,18 +1,16 @@
-import React, { useState, useMemo } from 'react';
-import { FlatList, View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon, Button } from 'react-native-paper';
+import React, { useMemo, useState } from 'react';
+import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Button, Icon } from 'react-native-paper';
+import { router } from 'expo-router';
 import RoomDisplayItem from '../RoomDisplayItem';
-import StatusRow from '../StatusRow';
 import FilterTabs, { FilterType } from '../FilterTabs';
 import { useUser } from '~/app/providers';
 import { useTheme } from '~/lib/themeContext';
-import { useToast } from '../Toast';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
 import { joinChatRoom, setActiveRoomId } from '~/redux/chatSlice';
 import { joinSocketRoom } from '~/redux/socketSlice';
 import { createAIAssistantRoom, getErrorMessage } from '~/lib/utils';
-import { router } from 'expo-router';
+import { useToast } from '../Toast';
 
 interface RoomListProps {
 	onCreateGroup?: () => void;
@@ -26,24 +24,17 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 	const rooms = useAppSelector((state) => state.chat.rooms);
 	const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
-	const insets = useSafeAreaInsets();
-
 	const filteredRooms = useMemo(() => {
 		if (!user?.rooms) return [];
-		
-		let rooms = user.rooms;
-		
-		// Apply filter
-		if (activeFilter === 'groups') {
-			rooms = rooms.filter((room) => room.is_group === true);
-		}
-		
-		return rooms;
-	}, [user?.rooms, activeFilter]);
 
-	const handleComingSoon = () => {
-		showToast({ message: 'This feature is coming soon!', type: 'coming-soon' });
-	};
+		let nextRooms = user.rooms;
+
+		if (activeFilter === 'groups') {
+			nextRooms = nextRooms.filter((room) => room.is_group === true);
+		}
+
+		return nextRooms;
+	}, [user?.rooms, activeFilter]);
 
 	const aiRoom = user?.rooms?.find((room) => room.is_ai_room);
 
@@ -90,7 +81,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 			</Text>
 			<View style={[styles.tipCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
 				<Text style={[styles.tipText, { color: colors.primary }]}>
-					💡 Go to Friends tab to add new friends and start chatting!
+					Go to the Friends tab to add people and start chatting.
 				</Text>
 			</View>
 			{onCreateGroup && (
@@ -109,21 +100,13 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 	const renderNoResults = () => (
 		<View style={styles.emptyContainer}>
 			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-				<Icon
-					source={activeFilter === 'groups' ? 'account-group' : 'magnify'}
-					size={40}
-					color={colors.textSecondary}
-				/>
+				<Icon source="account-group" size={40} color={colors.textSecondary} />
 			</View>
-			<Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>
-				{activeFilter === 'groups' ? 'No Groups Yet' : 'No Results Found'}
-			</Text>
+			<Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No Groups Yet</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
-				{activeFilter === 'groups'
-					? 'Create a group to start chatting with multiple friends'
-					: 'Try a different filter'}
+				Create a group to start chatting with multiple friends
 			</Text>
-			{activeFilter === 'groups' && onCreateGroup && (
+			{onCreateGroup && (
 				<Button
 					mode="contained"
 					onPress={onCreateGroup}
@@ -138,15 +121,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 
 	const ListHeader = () => (
 		<>
-			{/* Stories/Status Row */}
-			<StatusRow onAddStatusPress={handleComingSoon} />
-
-			{/* Filter Tabs */}
-			<FilterTabs
-				activeFilter={activeFilter}
-				onFilterChange={setActiveFilter}
-				onComingSoon={handleComingSoon}
-			/>
+			<FilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
 			<TouchableOpacity
 				style={[styles.aiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}

@@ -9,12 +9,15 @@ export interface IChatState {
 	rooms: {
 		[roomId: string]: TRoomData
 	},
-	//unreadmessages
+	unreadCounts: {
+		[roomId: string]: number
+	},
 }
 
 const initialState: IChatState = {
 	activeChatRoomId: '',
-	rooms: {}
+	rooms: {},
+	unreadCounts: {},
 }
 
 export const chatSlice = createSlice({
@@ -50,10 +53,13 @@ export const chatSlice = createSlice({
 				membersData: roomData.membersData || [],
 				saved_messages: decryptedSavedMessages
 			}
+			state.unreadCounts[roomData.roomId] = state.unreadCounts[roomData.roomId] || 0;
 		},
 		setActiveRoomId: (state, action: PayloadAction<string>) => {
 			state.activeChatRoomId = action.payload
-			//unreadmessages = 0
+			if (action.payload) {
+				state.unreadCounts[action.payload] = 0;
+			}
 		},
 		addMessage: (state, action: PayloadAction<{ message: ChatMessage, userId?: string, deviceId?: string }>) => {
 			const { message, userId, deviceId } = action.payload;
@@ -97,6 +103,14 @@ export const chatSlice = createSlice({
 			//Send push notification here
 
 			state.rooms[decryptedMessage.roomId].messages = [...chatMessages, decryptedMessage]
+			if (
+				userId &&
+				decryptedMessage.userUid !== userId &&
+				state.activeChatRoomId !== decryptedMessage.roomId
+			) {
+				state.unreadCounts[decryptedMessage.roomId] =
+					(state.unreadCounts[decryptedMessage.roomId] || 0) + 1;
+			}
 		},
 		addChatDoc: (state, action: PayloadAction<{ messages: ChatMessage[], roomId: string, userId?: string, deviceId?: string }>) => {
 			const { messages: rawMessages, roomId, userId, deviceId } = action.payload;
@@ -224,8 +238,8 @@ export const chatSlice = createSlice({
 			state.rooms[action.payload.roomId].messages = messages
 			state.rooms[action.payload.roomId].saved_messages = savedMessages
 		},
-		clearRoomData: (state) => {
-			state = initialState;
+		clearRoomData: () => {
+			return initialState;
 		},
 		removeRoom: (state, action: PayloadAction<string>) => {
 			const roomId = action.payload
@@ -233,10 +247,8 @@ export const chatSlice = createSlice({
 				state.activeChatRoomId = ''
 			}
 			delete state.rooms[roomId]
+			delete state.unreadCounts[roomId]
 		},
-		incrementUnreadMessages: () => {
-			
-		}
 	}
 })
 

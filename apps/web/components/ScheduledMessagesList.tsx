@@ -1,439 +1,561 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
+import React, { useState, useEffect, useCallback } from "react";
+import { Button } from "@/components/ui/button";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { 
-	Clock, 
-	Edit, 
-	Trash2, 
-	Repeat, 
-	Calendar,
-	MessageSquare,
-	AlertCircle
-} from 'lucide-react';
+import {
+  Clock,
+  Edit,
+  Trash2,
+  Repeat,
+  Calendar,
+  MessageSquare,
+  AlertCircle,
+} from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { useAppDispatch, useAppSelector } from '@/redux/store';
-import { getScheduledMessages, updateScheduledMessage, deleteScheduledMessage } from '@/redux/socketSlice';
-import { setScheduledMessages, removeScheduledMessage, updateScheduledMessage as updateScheduledMessageState } from '@/redux/scheduledMessagesSlice';
-import { TScheduledMessage, TUpdateScheduledMessageRequest } from '@/lib/types';
+import { useAppDispatch, useAppSelector } from "@/redux/store";
+import {
+  getScheduledMessages,
+  updateScheduledMessage,
+  deleteScheduledMessage,
+} from "@/redux/socketSlice";
+import {
+  setScheduledMessages,
+  removeScheduledMessage,
+  updateScheduledMessage as updateScheduledMessageState,
+} from "@/redux/scheduledMessagesSlice";
+import { TScheduledMessage, TUpdateScheduledMessageRequest } from "@/lib/types";
 
 interface ScheduledMessagesListProps {
-	roomId?: string;
-	userUid: string;
+  roomId?: string;
+  userUid: string;
 }
 
-export default function ScheduledMessagesList({ roomId, userUid }: ScheduledMessagesListProps) {
-	const { toast } = useToast();
-	const dispatch = useAppDispatch();
-	const scheduledMessages = useAppSelector(state => state.scheduledMessages.scheduledMessages);
-	const loading = useAppSelector(state => state.scheduledMessages.loading);
-	
-	const [open, setOpen] = useState(false);
-	const [editingMessage, setEditingMessage] = useState<TScheduledMessage | null>(null);
-	const [editForm, setEditForm] = useState({
-		message: '',
-		scheduledTime: '',
-		recurring: false,
-		recurringPattern: 'daily' as 'daily' | 'weekly' | 'monthly',
-		timezone: Intl.DateTimeFormat().resolvedOptions().timeZone
-	});
+export default function ScheduledMessagesList({
+  roomId,
+  userUid,
+}: ScheduledMessagesListProps) {
+  const { toast } = useToast();
+  const dispatch = useAppDispatch();
+  const scheduledMessages = useAppSelector(
+    (state) => state.scheduledMessages.scheduledMessages,
+  );
+  const loading = useAppSelector((state) => state.scheduledMessages.loading);
 
-	const loadScheduledMessages = useCallback(() => {
-		dispatch(getScheduledMessages(userUid, roomId));
-	}, [dispatch, roomId, userUid]);
+  const [open, setOpen] = useState(false);
+  const [editingMessage, setEditingMessage] =
+    useState<TScheduledMessage | null>(null);
+  const [editForm, setEditForm] = useState({
+    message: "",
+    scheduledTime: "",
+    recurring: false,
+    recurringPattern: "daily" as "daily" | "weekly" | "monthly",
+    timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  });
 
-	useEffect(() => {
-		if (open) {
-			loadScheduledMessages();
-		}
-	}, [open, loadScheduledMessages]);
+  const loadScheduledMessages = useCallback(() => {
+    dispatch(getScheduledMessages(userUid, roomId));
+  }, [dispatch, roomId, userUid]);
 
-	const getMinDateTime = () => {
-		const now = new Date();
-		now.setMinutes(now.getMinutes() + 1); // At least 1 minute in the future
-		// Convert to local datetime-local format (YYYY-MM-DDTHH:MM)
-		const year = now.getFullYear();
-		const month = String(now.getMonth() + 1).padStart(2, '0');
-		const day = String(now.getDate()).padStart(2, '0');
-		const hours = String(now.getHours()).padStart(2, '0');
-		const minutes = String(now.getMinutes()).padStart(2, '0');
-		return `${year}-${month}-${day}T${hours}:${minutes}`;
-	};
+  useEffect(() => {
+    if (open) {
+      loadScheduledMessages();
+    }
+  }, [open, loadScheduledMessages]);
 
-	const handleEdit = (message: TScheduledMessage) => {
-		setEditingMessage(message);
-		// Convert the scheduled time to local datetime-local format
-		const localDateTime = new Date(message.scheduledTime);
-		// Format as YYYY-MM-DDTHH:MM for datetime-local input
-		const year = localDateTime.getFullYear();
-		const month = String(localDateTime.getMonth() + 1).padStart(2, '0');
-		const day = String(localDateTime.getDate()).padStart(2, '0');
-		const hours = String(localDateTime.getHours()).padStart(2, '0');
-		const minutes = String(localDateTime.getMinutes()).padStart(2, '0');
-		const localDateTimeString = `${year}-${month}-${day}T${hours}:${minutes}`;
-		
-		setEditForm({
-			message: message.message,
-			scheduledTime: localDateTimeString,
-			recurring: message.recurring,
-			recurringPattern: message.recurringPattern || 'daily',
-			timezone: message.timezone
-		});
-	};
+  const getMinDateTime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 1); // At least 1 minute in the future
+    // Convert to local datetime-local format (YYYY-MM-DDTHH:MM)
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
-	const handleUpdate = async () => {
-		if (!editingMessage) return;
+  const handleEdit = (message: TScheduledMessage) => {
+    setEditingMessage(message);
+    // Convert the scheduled time to local datetime-local format
+    const localDateTime = new Date(message.scheduledTime);
+    // Format as YYYY-MM-DDTHH:MM for datetime-local input
+    const year = localDateTime.getFullYear();
+    const month = String(localDateTime.getMonth() + 1).padStart(2, "0");
+    const day = String(localDateTime.getDate()).padStart(2, "0");
+    const hours = String(localDateTime.getHours()).padStart(2, "0");
+    const minutes = String(localDateTime.getMinutes()).padStart(2, "0");
+    const localDateTimeString = `${year}-${month}-${day}T${hours}:${minutes}`;
 
-		if (!editForm.message.trim()) {
-			toast({
-				title: "Error",
-				description: "Message cannot be empty"
-			});
-			return;
-		}
+    setEditForm({
+      message: message.message,
+      scheduledTime: localDateTimeString,
+      recurring: message.recurring,
+      recurringPattern: message.recurringPattern || "daily",
+      timezone: message.timezone,
+    });
+  };
 
-		if (!editForm.scheduledTime) {
-			toast({
-				title: "Error",
-				description: "Please select a scheduled time"
-			});
-			return;
-		}
+  const handleUpdate = async () => {
+    if (!editingMessage) return;
 
-		const scheduledDateTime = new Date(editForm.scheduledTime);
-		if (scheduledDateTime <= new Date()) {
-			toast({
-				title: "Error",
-				description: "Scheduled time must be in the future"
-			});
-			return;
-		}
+    if (!editForm.message.trim()) {
+      toast({
+        title: "Error",
+        description: "Message cannot be empty",
+      });
+      return;
+    }
 
-		try {
-			const updates: TUpdateScheduledMessageRequest = {
-				message: editForm.message.trim(),
-				scheduledTime: scheduledDateTime.toISOString(),
-				recurring: editForm.recurring,
-				recurringPattern: editForm.recurring ? editForm.recurringPattern : undefined,
-				timezone: editForm.timezone
-			};
+    if (!editForm.scheduledTime) {
+      toast({
+        title: "Error",
+        description: "Please select a scheduled time",
+      });
+      return;
+    }
 
-			dispatch(updateScheduledMessage(editingMessage.id, updates, userUid));
-			
-			toast({
-				title: "Success",
-				description: "Scheduled message updated successfully"
-			});
+    const scheduledDateTime = new Date(editForm.scheduledTime);
+    if (scheduledDateTime <= new Date()) {
+      toast({
+        title: "Error",
+        description: "Scheduled time must be in the future",
+      });
+      return;
+    }
 
-			setEditingMessage(null);
-		} catch (error) {
-			toast({
-				title: "Error",
-				description: "Failed to update scheduled message"
-			});
-		}
-	};
+    try {
+      const updates: TUpdateScheduledMessageRequest = {
+        message: editForm.message.trim(),
+        scheduledTime: scheduledDateTime.toISOString(),
+        recurring: editForm.recurring,
+        recurringPattern: editForm.recurring
+          ? editForm.recurringPattern
+          : undefined,
+        timezone: editForm.timezone,
+      };
 
-	const handleDelete = async (messageId: string) => {
-		try {
-			dispatch(deleteScheduledMessage(messageId, userUid));
-			
-			toast({
-				title: "Success",
-				description: "Scheduled message deleted successfully"
-			});
-		} catch (error) {
-			toast({
-				title: "Error",
-				description: "Failed to delete scheduled message"
-			});
-		}
-	};
+      dispatch(updateScheduledMessage(editingMessage.id, updates, userUid));
 
-	const formatDateTime = (date: Date | string) => {
-		// Ensure we have a valid Date object
-		let dateObj: Date;
-		if (date instanceof Date) {
-			dateObj = date;
-		} else if (typeof date === 'string') {
-			dateObj = new Date(date);
-		} else {
-			console.error('Invalid date type:', typeof date, date);
-			return 'Invalid date';
-		}
-		
-		// Check if the date is valid
-		if (isNaN(dateObj.getTime())) {
-			console.error('Invalid date value:', date);
-			return 'Invalid date';
-		}
-		
-		return new Intl.DateTimeFormat('en-US', {
-			year: 'numeric',
-			month: 'short',
-			day: 'numeric',
-			hour: '2-digit',
-			minute: '2-digit',
-			timeZoneName: 'short'
-		}).format(dateObj);
-	};
+      toast({
+        title: "Success",
+        description: "Scheduled message updated successfully",
+      });
 
-	const getStatusColor = (status: string) => {
-		switch (status) {
-			case 'pending':
-				return 'bg-yellow-100 text-yellow-800';
-			case 'sent':
-				return 'bg-green-100 text-green-800';
-			case 'cancelled':
-				return 'bg-red-100 text-red-800';
-			default:
-				return 'bg-gray-100 text-gray-800';
-		}
-	};
+      setEditingMessage(null);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update scheduled message",
+      });
+    }
+  };
 
-	const filteredMessages = roomId 
-		? scheduledMessages.filter(msg => msg.roomId === roomId)
-		: scheduledMessages;
+  const handleDelete = async (messageId: string) => {
+    try {
+      dispatch(deleteScheduledMessage(messageId, userUid));
 
-	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				<Button variant="outline" size="sm" className={filteredMessages.length === 0 ? "hidden items-center gap-2" : "flex items-center gap-2"}>
-					<Clock className="h-4 w-4" />
-					Scheduled Messages
-				</Button>
-			</DialogTrigger>
-			<DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
-				<DialogHeader>
-					<DialogTitle className="flex items-center gap-2">
-						<Clock className="h-5 w-5" />
-						Scheduled Messages
-					</DialogTitle>
-					<DialogDescription>
-						Manage your scheduled messages
-					</DialogDescription>
-				</DialogHeader>
-				
-				<div className="flex-1 overflow-y-auto">
-					{loading ? (
-						<div className="flex items-center justify-center py-8">
-							<div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-						</div>
-					) : filteredMessages.length === 0 ? (
-						<div className="flex flex-col items-center justify-center py-8 text-center">
-							<MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
-							<p className="text-muted-foreground">No scheduled messages found</p>
-						</div>
-					) : (
-						<div className="space-y-4">
-							{filteredMessages.map((message) => (
-								<Card key={message.id} className="relative">
-									<CardHeader className="pb-3">
-										<div className="flex items-start justify-between">
-											<div className="flex-1">
-												<CardTitle className="text-sm font-medium line-clamp-2">
-													{message.message}
-												</CardTitle>
-												<CardDescription className="flex items-center gap-2 mt-1">
-													<Calendar className="h-3 w-3" />
-													{formatDateTime(message.scheduledTime)}
-													{message.recurring && (
-														<>
-															<Repeat className="h-3 w-3" />
-															<span className="capitalize">{message.recurringPattern}</span>
-														</>
-													)}
-												</CardDescription>
-											</div>
-											<div className="flex items-center gap-2 ml-4">
-												<Badge className={getStatusColor(message.status)}>
-													{message.status}
-												</Badge>
-												{message.status === 'pending' && (
-													<div className="flex gap-1">
-														<Button
-															variant="ghost"
-															size="sm"
-															onClick={() => handleEdit(message)}
-															className="h-8 w-8 p-0"
-														>
-															<Edit className="h-3 w-3" />
-														</Button>
-														<Button
-															variant="ghost"
-															size="sm"
-															onClick={() => handleDelete(message.id)}
-															className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-														>
-															<Trash2 className="h-3 w-3" />
-														</Button>
-													</div>
-												)}
-											</div>
-										</div>
-									</CardHeader>
-								</Card>
-							))}
-						</div>
-					)}
-				</div>
+      toast({
+        title: "Success",
+        description: "Scheduled message deleted successfully",
+      });
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete scheduled message",
+      });
+    }
+  };
 
-				{/* Edit Message Dialog */}
-				<Dialog open={!!editingMessage} onOpenChange={() => setEditingMessage(null)}>
-					<DialogContent className="sm:max-w-[425px]">
-						<DialogHeader>
-							<DialogTitle>Edit Scheduled Message</DialogTitle>
-							<DialogDescription>
-								Update your scheduled message details.
-							</DialogDescription>
-						</DialogHeader>
-						<div className="grid gap-4 py-4">
-							<div className="grid gap-2">
-								<Label htmlFor="edit-message">Message</Label>
-								<Textarea
-									id="edit-message"
-									placeholder="Type your message here..."
-									value={editForm.message}
-									onChange={(e) => setEditForm({ ...editForm, message: e.target.value })}
-									className="min-h-[80px]"
-								/>
-							</div>
-							
-							<div className="grid gap-2">
-								<Label htmlFor="edit-scheduledTime">Scheduled Time</Label>
-								<Input
-									id="edit-scheduledTime"
-									type="datetime-local"
-									value={editForm.scheduledTime}
-									onChange={(e) => setEditForm({ ...editForm, scheduledTime: e.target.value })}
-									min={getMinDateTime()}
-								/>
-							</div>
+  const formatDateTime = (date: Date | string) => {
+    // Ensure we have a valid Date object
+    let dateObj: Date;
+    if (date instanceof Date) {
+      dateObj = date;
+    } else if (typeof date === "string") {
+      dateObj = new Date(date);
+    } else {
+      console.error("Invalid date type:", typeof date, date);
+      return "Invalid date";
+    }
 
-							<div className="flex items-center space-x-2">
-								<input
-									type="checkbox"
-									id="edit-recurring"
-									checked={editForm.recurring}
-									onChange={(e) => setEditForm({ ...editForm, recurring: e.target.checked })}
-									className="rounded"
-								/>
-								<Label htmlFor="edit-recurring" className="flex items-center gap-2">
-									<Repeat className="h-4 w-4" />
-									Recurring Message
-								</Label>
-							</div>
+    // Check if the date is valid
+    if (isNaN(dateObj.getTime())) {
+      console.error("Invalid date value:", date);
+      return "Invalid date";
+    }
 
-							{editForm.recurring && (
-								<div className="grid gap-2">
-									<Label htmlFor="edit-recurringPattern">Repeat Pattern</Label>
-									<Select 
-										value={editForm.recurringPattern} 
-										onValueChange={(value: 'daily' | 'weekly' | 'monthly') => 
-											setEditForm({ ...editForm, recurringPattern: value })
-										}
-									>
-										<SelectTrigger>
-											<SelectValue placeholder="Select repeat pattern" />
-										</SelectTrigger>
-										<SelectContent>
-											<SelectItem value="daily">Daily</SelectItem>
-											<SelectItem value="weekly">Weekly</SelectItem>
-											<SelectItem value="monthly">Monthly</SelectItem>
-										</SelectContent>
-									</Select>
-								</div>
-							)}
+    return new Intl.DateTimeFormat("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZoneName: "short",
+    }).format(dateObj);
+  };
 
-							<div className="grid gap-2">
-								<Label htmlFor="edit-timezone">Timezone</Label>
-								<Select 
-									value={editForm.timezone} 
-									onValueChange={(value) => setEditForm({ ...editForm, timezone: value })}
-								>
-									<SelectTrigger>
-										<SelectValue placeholder="Select timezone" />
-									</SelectTrigger>
-									<SelectContent className="max-h-[300px]">
-										<SelectItem value={Intl.DateTimeFormat().resolvedOptions().timeZone}>
-											{Intl.DateTimeFormat().resolvedOptions().timeZone} (Auto-detected)
-										</SelectItem>
-										<SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
-										<SelectItem value="America/New_York">America/New York (EST/EDT)</SelectItem>
-										<SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
-										<SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
-										<SelectItem value="America/Los_Angeles">America/Los Angeles (PST/PDT)</SelectItem>
-										<SelectItem value="America/Toronto">America/Toronto</SelectItem>
-										<SelectItem value="America/Vancouver">America/Vancouver</SelectItem>
-										<SelectItem value="America/Mexico_City">America/Mexico City</SelectItem>
-										<SelectItem value="America/Sao_Paulo">America/São Paulo</SelectItem>
-										<SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
-										<SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Madrid">Europe/Madrid (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Rome">Europe/Rome (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Amsterdam">Europe/Amsterdam (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Brussels">Europe/Brussels (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Vienna">Europe/Vienna (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Stockholm">Europe/Stockholm (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Copenhagen">Europe/Copenhagen (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Oslo">Europe/Oslo (CET/CEST)</SelectItem>
-										<SelectItem value="Europe/Helsinki">Europe/Helsinki (EET/EEST)</SelectItem>
-										<SelectItem value="Europe/Athens">Europe/Athens (EET/EEST)</SelectItem>
-										<SelectItem value="Europe/Moscow">Europe/Moscow (MSK)</SelectItem>
-										<SelectItem value="Europe/Istanbul">Europe/Istanbul (TRT)</SelectItem>
-										<SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
-										<SelectItem value="Asia/Karachi">Asia/Karachi (PKT)</SelectItem>
-										<SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
-										<SelectItem value="Asia/Dhaka">Asia/Dhaka (BST)</SelectItem>
-										<SelectItem value="Asia/Bangkok">Asia/Bangkok (ICT)</SelectItem>
-										<SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
-										<SelectItem value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</SelectItem>
-										<SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
-										<SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
-										<SelectItem value="Asia/Seoul">Asia/Seoul (KST)</SelectItem>
-										<SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
-										<SelectItem value="Australia/Adelaide">Australia/Adelaide (ACST/ACDT)</SelectItem>
-										<SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
-										<SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</SelectItem>
-										<SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST/AEDT)</SelectItem>
-										<SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT)</SelectItem>
-										<SelectItem value="Pacific/Fiji">Pacific/Fiji (FJT)</SelectItem>
-										<SelectItem value="Pacific/Honolulu">Pacific/Honolulu (HST)</SelectItem>
-									</SelectContent>
-								</Select>
-							</div>
-						</div>
-						<div className="flex justify-end gap-2">
-							<Button variant="outline" onClick={() => setEditingMessage(null)}>
-								Cancel
-							</Button>
-							<Button onClick={handleUpdate}>
-								Update Message
-							</Button>
-						</div>
-					</DialogContent>
-				</Dialog>
-			</DialogContent>
-		</Dialog>
-	);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "pending":
+        return "bg-yellow-100 text-yellow-800";
+      case "sent":
+        return "bg-green-100 text-green-800";
+      case "cancelled":
+        return "bg-red-100 text-red-800";
+      default:
+        return "bg-gray-100 text-gray-800";
+    }
+  };
+
+  const filteredMessages = roomId
+    ? scheduledMessages.filter((msg) => msg.roomId === roomId)
+    : scheduledMessages;
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="sm"
+          className={
+            filteredMessages.length === 0
+              ? "hidden items-center gap-2"
+              : "flex items-center gap-2"
+          }
+        >
+          <Clock className="h-4 w-4" />
+          Scheduled Messages
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="sm:max-w-[600px] max-h-[80vh] overflow-hidden flex flex-col">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Scheduled Messages
+          </DialogTitle>
+          <DialogDescription>Manage your scheduled messages</DialogDescription>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+            </div>
+          ) : filteredMessages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-8 text-center">
+              <MessageSquare className="h-12 w-12 text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                No scheduled messages found
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {filteredMessages.map((message) => (
+                <Card key={message.id} className="relative">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <CardTitle className="text-sm font-medium line-clamp-2">
+                          {message.message}
+                        </CardTitle>
+                        <CardDescription className="flex items-center gap-2 mt-1">
+                          <Calendar className="h-3 w-3" />
+                          {formatDateTime(message.scheduledTime)}
+                          {message.recurring && (
+                            <>
+                              <Repeat className="h-3 w-3" />
+                              <span className="capitalize">
+                                {message.recurringPattern}
+                              </span>
+                            </>
+                          )}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 ml-4">
+                        <Badge className={getStatusColor(message.status)}>
+                          {message.status}
+                        </Badge>
+                        {message.status === "pending" && (
+                          <div className="flex gap-1">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(message)}
+                              className="h-8 w-8 p-0"
+                            >
+                              <Edit className="h-3 w-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(message.id)}
+                              className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Edit Message Dialog */}
+        <Dialog
+          open={!!editingMessage}
+          onOpenChange={() => setEditingMessage(null)}
+        >
+          <DialogContent className="sm:max-w-[425px]">
+            <DialogHeader>
+              <DialogTitle>Edit Scheduled Message</DialogTitle>
+              <DialogDescription>
+                Update your scheduled message details.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit-message">Message</Label>
+                <Textarea
+                  id="edit-message"
+                  placeholder="Type your message here..."
+                  value={editForm.message}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, message: e.target.value })
+                  }
+                  className="min-h-[80px]"
+                />
+              </div>
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-scheduledTime">Scheduled Time</Label>
+                <Input
+                  id="edit-scheduledTime"
+                  type="datetime-local"
+                  value={editForm.scheduledTime}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, scheduledTime: e.target.value })
+                  }
+                  min={getMinDateTime()}
+                />
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  id="edit-recurring"
+                  checked={editForm.recurring}
+                  onChange={(e) =>
+                    setEditForm({ ...editForm, recurring: e.target.checked })
+                  }
+                  className="rounded"
+                />
+                <Label
+                  htmlFor="edit-recurring"
+                  className="flex items-center gap-2"
+                >
+                  <Repeat className="h-4 w-4" />
+                  Recurring Message
+                </Label>
+              </div>
+
+              {editForm.recurring && (
+                <div className="grid gap-2">
+                  <Label htmlFor="edit-recurringPattern">Repeat Pattern</Label>
+                  <Select
+                    value={editForm.recurringPattern}
+                    onValueChange={(value: "daily" | "weekly" | "monthly") =>
+                      setEditForm({ ...editForm, recurringPattern: value })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select repeat pattern" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="daily">Daily</SelectItem>
+                      <SelectItem value="weekly">Weekly</SelectItem>
+                      <SelectItem value="monthly">Monthly</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+
+              <div className="grid gap-2">
+                <Label htmlFor="edit-timezone">Timezone</Label>
+                <Select
+                  value={editForm.timezone}
+                  onValueChange={(value) =>
+                    setEditForm({ ...editForm, timezone: value })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select timezone" />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-[300px]">
+                    <SelectItem
+                      value={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                    >
+                      {Intl.DateTimeFormat().resolvedOptions().timeZone}{" "}
+                      (Auto-detected)
+                    </SelectItem>
+                    <SelectItem value="UTC">
+                      UTC (Coordinated Universal Time)
+                    </SelectItem>
+                    <SelectItem value="America/New_York">
+                      America/New York (EST/EDT)
+                    </SelectItem>
+                    <SelectItem value="America/Chicago">
+                      America/Chicago (CST/CDT)
+                    </SelectItem>
+                    <SelectItem value="America/Denver">
+                      America/Denver (MST/MDT)
+                    </SelectItem>
+                    <SelectItem value="America/Los_Angeles">
+                      America/Los Angeles (PST/PDT)
+                    </SelectItem>
+                    <SelectItem value="America/Toronto">
+                      America/Toronto
+                    </SelectItem>
+                    <SelectItem value="America/Vancouver">
+                      America/Vancouver
+                    </SelectItem>
+                    <SelectItem value="America/Mexico_City">
+                      America/Mexico City
+                    </SelectItem>
+                    <SelectItem value="America/Sao_Paulo">
+                      America/Sao Paulo
+                    </SelectItem>
+                    <SelectItem value="Europe/London">
+                      Europe/London (GMT/BST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Paris">
+                      Europe/Paris (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Berlin">
+                      Europe/Berlin (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Madrid">
+                      Europe/Madrid (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Rome">
+                      Europe/Rome (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Amsterdam">
+                      Europe/Amsterdam (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Brussels">
+                      Europe/Brussels (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Vienna">
+                      Europe/Vienna (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Stockholm">
+                      Europe/Stockholm (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Copenhagen">
+                      Europe/Copenhagen (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Oslo">
+                      Europe/Oslo (CET/CEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Helsinki">
+                      Europe/Helsinki (EET/EEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Athens">
+                      Europe/Athens (EET/EEST)
+                    </SelectItem>
+                    <SelectItem value="Europe/Moscow">
+                      Europe/Moscow (MSK)
+                    </SelectItem>
+                    <SelectItem value="Europe/Istanbul">
+                      Europe/Istanbul (TRT)
+                    </SelectItem>
+                    <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
+                    <SelectItem value="Asia/Karachi">
+                      Asia/Karachi (PKT)
+                    </SelectItem>
+                    <SelectItem value="Asia/Kolkata">
+                      Asia/Kolkata (IST)
+                    </SelectItem>
+                    <SelectItem value="Asia/Dhaka">Asia/Dhaka (BST)</SelectItem>
+                    <SelectItem value="Asia/Bangkok">
+                      Asia/Bangkok (ICT)
+                    </SelectItem>
+                    <SelectItem value="Asia/Singapore">
+                      Asia/Singapore (SGT)
+                    </SelectItem>
+                    <SelectItem value="Asia/Hong_Kong">
+                      Asia/Hong Kong (HKT)
+                    </SelectItem>
+                    <SelectItem value="Asia/Shanghai">
+                      Asia/Shanghai (CST)
+                    </SelectItem>
+                    <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+                    <SelectItem value="Asia/Seoul">Asia/Seoul (KST)</SelectItem>
+                    <SelectItem value="Australia/Perth">
+                      Australia/Perth (AWST)
+                    </SelectItem>
+                    <SelectItem value="Australia/Adelaide">
+                      Australia/Adelaide (ACST/ACDT)
+                    </SelectItem>
+                    <SelectItem value="Australia/Brisbane">
+                      Australia/Brisbane (AEST)
+                    </SelectItem>
+                    <SelectItem value="Australia/Sydney">
+                      Australia/Sydney (AEST/AEDT)
+                    </SelectItem>
+                    <SelectItem value="Australia/Melbourne">
+                      Australia/Melbourne (AEST/AEDT)
+                    </SelectItem>
+                    <SelectItem value="Pacific/Auckland">
+                      Pacific/Auckland (NZST/NZDT)
+                    </SelectItem>
+                    <SelectItem value="Pacific/Fiji">
+                      Pacific/Fiji (FJT)
+                    </SelectItem>
+                    <SelectItem value="Pacific/Honolulu">
+                      Pacific/Honolulu (HST)
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingMessage(null)}>
+                Cancel
+              </Button>
+              <Button onClick={handleUpdate}>Update Message</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      </DialogContent>
+    </Dialog>
+  );
 }
-

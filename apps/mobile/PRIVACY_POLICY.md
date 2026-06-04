@@ -1,6 +1,6 @@
 # Hoplio Privacy Policy
 
-**Last updated:** [02-03-2026]
+**Last updated:** 2026-06-03
 
 ## Overview
 
@@ -8,25 +8,26 @@ Hoplio ("we", "our", or "the app") is a messaging application. This policy descr
 
 ## Permissions We Use
 
-### Camera
+### Photos and files
 
-The app requests **camera** permission so you can:
+The app may request access to photos or files on your device so you can:
 
-- Take photos and send them in chat (e.g. via "Take Photo" in a conversation).
+- Choose attachments from your library or file storage
+- Update your profile picture
 
-Camera access is only used when you choose to take a photo from within the app. We do not record or stream video in the background. You can revoke camera permission at any time in your device settings.
+We only access photos or files when you choose them from inside the app.
 
 ### Other permissions
 
-- **Internet / Network** – To send and receive messages and sync data.
-- **Storage (photos/files)** – To attach and send photos, videos, and files from your device.
-- **Network state** – To detect connectivity and support offline use.
+- **Internet / network** - To send and receive messages and sync data
+- **Storage (photos/files)** - To attach and send files from your device
+- **Network state** - To detect connectivity and support offline use
 
 ## Data We Collect and Use
 
-- **Account data** – Email, name, and profile photo you provide (e.g. via Google Sign-In or email sign-up).
-- **Messages and content** – Messages, images, and files you send through the app, stored to provide the service.
-- **Device/technical data** – May include identifiers and crash/usage data for stability and improvements, depending on the services we use (e.g. Firebase, EAS).
+- **Account data** - Email, name, and profile photo you provide through sign-in or profile updates
+- **Messages and content** - Messages, images, and files you send through the app, stored to provide the service
+- **Device and technical data** - May include identifiers and crash or usage data for stability and improvements, depending on the services we use
 
 We use this data to operate the app, deliver messages, and improve the service. We do not sell your personal data.
 
@@ -34,25 +35,22 @@ We use this data to operate the app, deliver messages, and improve the service. 
 
 The app may use services such as:
 
-- **Firebase** – Authentication and backend.
-- **Google Sign-In** – For signing in with your Google account.
+- **Firebase** - Authentication and backend
+- **Google Sign-In** - For signing in with your Google account
 
 Their privacy policies apply to data they process on our behalf.
 
 ## Your Choices
 
-- You can turn off camera (and other) permissions in your device **Settings → Apps → Hoplio → Permissions**.
-- You can delete your account or request data deletion by contacting us (see below).
+- You can turn off app permissions in your device settings
+- You can delete your account or request data deletion by contacting us
 
 ## Changes
 
-We may update this policy. We will post the updated version and, where required, notify you via the app or store listing.
+We may update this policy. We will post the updated version and, where required, notify you through the app or store listing.
 
 ## Contact
 
-For privacy questions or to request access/deletion of your data, contact us at:  
-**[anirudh.makuluri@gmail.com]**
+For privacy questions or to request access or deletion of your data, contact:
 
----
-
-*This privacy policy is required for apps that use sensitive permissions (e.g. Camera) on Google Play. Host this page at a public URL (e.g. your website or GitHub Pages) and add that URL in Google Play Console under **App content → Privacy policy**.*
+**anirudh.makuluri@gmail.com**

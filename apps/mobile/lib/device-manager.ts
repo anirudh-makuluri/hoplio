@@ -122,6 +122,27 @@ export const getSigningKeyPair = () => cachedState?.signingKeyPair ?? null;
 
 export const getSigningPublicKey = () => cachedState?.signingKeyPair?.publicKey ?? null;
 
+export const rotateSigningKeyPair = async () => {
+	const currentState = cachedState ?? (await initializeDevice());
+	const signingKeyPair = generateSigningKeypair();
+	const deviceId = currentState.deviceId || generateDeviceId(Platform.OS === 'ios' ? 'ios' : 'android');
+	const deviceName = currentState.deviceName || (Platform.OS === 'ios' ? 'iOS Device' : 'Android Device');
+	const nextState: E2EEDeviceState = {
+		...currentState,
+		deviceId,
+		deviceName,
+		signingKeyPair: {
+			deviceId,
+			deviceName,
+			publicKey: signingKeyPair.publicKey,
+			privateKey: signingKeyPair.privateKey,
+		},
+	};
+
+	await persistState(nextState);
+	return nextState.signingKeyPair;
+};
+
 export const getRoomKeyPair = (roomId: string) => cachedState?.roomKeyPairs[roomId] ?? null;
 
 export const getAllRoomKeyPairs = () => cachedState?.roomKeyPairs ?? {};

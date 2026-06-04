@@ -233,31 +233,33 @@ AI behavior for encrypted conversations: mobile disables AI summaries and smart 
 
 Goal: remove dead UI, align flows, and make the app feel intentionally finished.
 
+Status: complete on June 3, 2026.
+
 #### Mobile
 
-- [ ] Hide Calls tab
-- [ ] Hide call buttons in room header
-- [ ] Hide camera actions and camera CTA surfaces
-- [ ] Remove all "coming soon" v1 dead-end interactions
-- [ ] Keep only stable attachment paths visible
-- [ ] Finish unread count display
-- [ ] Ensure group management matches web
-- [ ] Ensure semantic search matches web
-- [ ] Ensure scheduled message flows match web
+- [x] Hide Calls tab
+- [x] Hide call buttons in room header
+- [x] Hide camera actions and camera CTA surfaces
+- [x] Remove all "coming soon" v1 dead-end interactions
+- [x] Keep only stable attachment paths visible
+- [x] Finish unread count display
+- [x] Ensure group management matches web
+- [x] Ensure semantic search matches web
+- [x] Ensure scheduled message flows match web
 
 #### Web
 
-- [ ] Keep web focused on online authenticated use only
-- [ ] Remove any future-facing UI that is not in V1
-- [ ] Finish unread count handling
-- [ ] Verify responsive usability
-- [ ] Fix any string/encoding glitches
+- [x] Keep web focused on online authenticated use only
+- [x] Remove any future-facing UI that is not in V1
+- [x] Finish unread count handling
+- [x] Verify responsive usability
+- [x] Fix any string/encoding glitches
 
 #### Shared
 
-- [ ] Normalize timestamps, presence labels, and error states
-- [ ] Normalize saved-message behavior
-- [ ] Normalize attachment behavior
+- [x] Normalize timestamps, presence labels, and error states
+- [x] Normalize saved-message behavior
+- [x] Normalize attachment behavior
 
 #### Exit Criteria
 

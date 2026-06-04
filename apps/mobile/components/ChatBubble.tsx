@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Pressable, Image, Linking, StyleSheet } from 'react-native';
-import { Avatar, Text, Menu, Portal, Dialog, Button, TextInput } from 'react-native-paper';
+import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
+import { Avatar, Button, Dialog, Icon, Menu, Portal, Text, TextInput } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { ChatDate, ChatMessage } from '~/lib/types';
+import { deleteMessage, editMessage, addReaction, saveMessage } from '~/redux/socketSlice';
 import { useAppDispatch } from '~/redux/store';
-import { editMessage, deleteMessage, addReaction } from '~/redux/socketSlice';
 import { useTheme } from '~/lib/themeContext';
+
+const COMMON_EMOJIS = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F64F}', '\u{1F389}', '\u{1F525}'];
 
 export default function ChatBubble({
 	message,
@@ -26,8 +28,6 @@ export default function ChatBubble({
 	const [emojiPickerVisible, setEmojiPickerVisible] = useState(false);
 	const [editText, setEditText] = useState('');
 
-	const commonEmojis = ['👍', '❤️', '😂', '😮', '😢', '🙏', '🎉', '🔥'];
-
 	if (message.isDate) {
 		return (
 			<View style={styles.dateContainer}>
@@ -39,7 +39,7 @@ export default function ChatBubble({
 	}
 
 	const chatMessage = message as ChatMessage;
-	const isSelf = chatMessage.userUid == user?.uid;
+	const isSelf = chatMessage.userUid === user?.uid;
 	const isAIMessage = chatMessage.isAIMessage || chatMessage.userUid === 'ai-assistant';
 	const time = new Date(chatMessage.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
@@ -47,7 +47,7 @@ export default function ChatBubble({
 	const closeMenu = () => setMenuVisible(false);
 
 	const handleEditPress = () => {
-		setEditText(message.chatInfo || '');
+		setEditText(chatMessage.chatInfo || '');
 		setEditDialogVisible(true);
 		closeMenu();
 	};
@@ -62,14 +62,26 @@ export default function ChatBubble({
 		closeMenu();
 	};
 
+	const handleSavePress = () => {
+		if (!chatMessage.chatDocId) return;
+		dispatch(
+			saveMessage({
+				id: String(chatMessage.id),
+				chatDocId: chatMessage.chatDocId,
+				roomId,
+			})
+		);
+		closeMenu();
+	};
+
 	const handleEmojiSelect = (emoji: string) => {
-		if (!user || !message.chatDocId) return;
+		if (!user || !chatMessage.chatDocId) return;
 		dispatch(
 			addReaction({
 				reactionId: emoji,
-				id: String(message.id),
-				chatDocId: message.chatDocId,
-				roomId: roomId,
+				id: String(chatMessage.id),
+				chatDocId: chatMessage.chatDocId,
+				roomId,
 				userUid: user.uid,
 				userName: user.name,
 			})
@@ -77,45 +89,29 @@ export default function ChatBubble({
 		setEmojiPickerVisible(false);
 	};
 
-	const handleReactionClick = (emoji: string) => {
-		if (!user || !message.chatDocId) return;
+	const confirmEdit = () => {
+		if (!editText.trim() || !chatMessage.chatDocId) return;
 		dispatch(
-			addReaction({
-				reactionId: emoji,
-				id: String(message.id),
-				chatDocId: message.chatDocId,
-				roomId: roomId,
-				userUid: user.uid,
-				userName: user.name,
+			editMessage({
+				id: String(chatMessage.id),
+				chatDocId: chatMessage.chatDocId,
+				roomId,
+				newText: editText,
 			})
 		);
-	};
-
-	const confirmEdit = () => {
-		if (editText.trim() && message.chatDocId) {
-			dispatch(
-				editMessage({
-					id: String(message.id),
-					chatDocId: message.chatDocId,
-					roomId: roomId,
-					newText: editText,
-				})
-			);
-		}
 		setEditDialogVisible(false);
 		setEditText('');
 	};
 
 	const confirmDelete = () => {
-		if (message.chatDocId) {
-			dispatch(
-				deleteMessage({
-					id: String(message.id),
-					chatDocId: message.chatDocId,
-					roomId: roomId,
-				})
-			);
-		}
+		if (!chatMessage.chatDocId) return;
+		dispatch(
+			deleteMessage({
+				id: String(chatMessage.id),
+				chatDocId: chatMessage.chatDocId,
+				roomId,
+			})
+		);
 		setDeleteDialogVisible(false);
 	};
 
@@ -123,7 +119,7 @@ export default function ChatBubble({
 		if (isSelf) {
 			return {
 				backgroundColor: colors.primary,
-				borderTopRightRadius: message.isConsecutiveMessage ? 18 : 4,
+				borderTopRightRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
 				borderTopLeftRadius: 18,
 				borderBottomLeftRadius: 18,
 				borderBottomRightRadius: 18,
@@ -133,7 +129,7 @@ export default function ChatBubble({
 			return {
 				backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : '#eef2ff',
 				borderTopRightRadius: 18,
-				borderTopLeftRadius: message.isConsecutiveMessage ? 18 : 4,
+				borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
 				borderBottomLeftRadius: 18,
 				borderBottomRightRadius: 18,
 				borderWidth: 1,
@@ -143,7 +139,7 @@ export default function ChatBubble({
 		return {
 			backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#f1f5f9',
 			borderTopRightRadius: 18,
-			borderTopLeftRadius: message.isConsecutiveMessage ? 18 : 4,
+			borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
 			borderBottomLeftRadius: 18,
 			borderBottomRightRadius: 18,
 		};
@@ -152,26 +148,24 @@ export default function ChatBubble({
 	return (
 		<>
 			<View style={[styles.messageRow, { justifyContent: isSelf ? 'flex-end' : 'flex-start' }]}>
-				{/* Avatar for non-self messages */}
-				{!isSelf && !message.isConsecutiveMessage && (
+				{!isSelf && !chatMessage.isConsecutiveMessage && (
 					<Avatar.Image
 						size={32}
 						source={{
 							uri: isAIMessage
 								? 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff'
-								: message.userPhoto,
+								: chatMessage.userPhoto,
 						}}
 						style={styles.avatar}
 					/>
 				)}
-				{!isSelf && message.isConsecutiveMessage && <View style={styles.avatarPlaceholder} />}
+				{!isSelf && chatMessage.isConsecutiveMessage && <View style={styles.avatarPlaceholder} />}
 
 				<View style={[styles.bubbleContainer, { maxWidth: '75%' }]}>
-					{/* Sender name for groups */}
-					{!isSelf && !message.isConsecutiveMessage && (isGroup || isAIMessage) && (
+					{!isSelf && !chatMessage.isConsecutiveMessage && (isGroup || isAIMessage) && (
 						<View style={styles.senderRow}>
 							<Text style={[styles.senderName, { color: isAIMessage ? '#6366f1' : colors.textSecondary }]}>
-								{isAIMessage ? 'Hoplio AI' : message.userName}
+								{isAIMessage ? 'Hoplio AI' : chatMessage.userName}
 							</Text>
 							{isAIMessage && (
 								<View style={[styles.aiBadge, { backgroundColor: '#6366f1' }]}>
@@ -187,18 +181,12 @@ export default function ChatBubble({
 						anchor={
 							<Pressable onLongPress={openMenu} delayLongPress={400}>
 								<View style={[styles.bubble, getBubbleStyle()]}>
-									{/* Image */}
-									{message.type === 'image' && (
-										<Image
-											source={{ uri: message.chatInfo }}
-											style={styles.imageContent}
-											resizeMode="cover"
-										/>
+									{chatMessage.type === 'image' && (
+										<Image source={{ uri: chatMessage.chatInfo }} style={styles.imageContent} resizeMode="cover" />
 									)}
 
-									{/* File attachment */}
-									{message.type === 'file' && (
-										<Pressable onPress={() => Linking.openURL(message.chatInfo)}>
+									{chatMessage.type === 'file' && (
+										<Pressable onPress={() => Linking.openURL(chatMessage.chatInfo)}>
 											<View
 												style={[
 													styles.fileContainer,
@@ -208,14 +196,11 @@ export default function ChatBubble({
 												]}
 											>
 												<View style={[styles.fileIcon, { backgroundColor: colors.primary }]}>
-													<Text style={styles.fileIconText}>📄</Text>
+													<Icon source="file-outline" size={20} color="#fff" />
 												</View>
 												<View style={styles.fileInfo}>
-													<Text
-														style={[styles.fileName, { color: isSelf ? '#fff' : colors.text }]}
-														numberOfLines={1}
-													>
-														{message.fileName || 'Document'}
+													<Text style={[styles.fileName, { color: isSelf ? '#fff' : colors.text }]} numberOfLines={1}>
+														{chatMessage.fileName || 'Document'}
 													</Text>
 													<Text
 														style={[
@@ -230,14 +215,14 @@ export default function ChatBubble({
 										</Pressable>
 									)}
 
-									{/* Text message */}
-									{message.type === 'text' && (
+									{chatMessage.type === 'text' && (
 										<Text style={[styles.messageText, { color: isSelf ? '#fff' : colors.text }]}>
-											{message.isEncrypted && !message.chatInfo
-												? 'Encrypted message - Unable to decrypt'
-												: message.chatInfo}
+											{chatMessage.isEncrypted && !chatMessage.chatInfo
+												? 'Encrypted message unavailable'
+												: chatMessage.chatInfo}
 										</Text>
 									)}
+
 									{chatMessage.isEncrypted && (
 										<Text
 											style={[
@@ -249,7 +234,6 @@ export default function ChatBubble({
 										</Text>
 									)}
 
-									{/* Time */}
 									<View style={styles.timeRow}>
 										<Text
 											style={[
@@ -259,16 +243,17 @@ export default function ChatBubble({
 										>
 											{time}
 										</Text>
-										{message.isMsgEdited && (
+										{chatMessage.isMsgEdited && (
 											<Text
 												style={[
 													styles.editedText,
 													{ color: isSelf ? 'rgba(255,255,255,0.7)' : colors.textSecondary },
 												]}
 											>
-												• edited
+												(edited)
 											</Text>
 										)}
+										{chatMessage.isMsgSaved && <Icon source="star" size={12} color={isSelf ? '#fff' : colors.primary} />}
 									</View>
 								</View>
 							</Pressable>
@@ -276,19 +261,25 @@ export default function ChatBubble({
 						contentStyle={{ backgroundColor: colors.surface, borderRadius: 12 }}
 					>
 						<Menu.Item onPress={handleReactPress} title="React" leadingIcon="emoticon-happy-outline" />
-						{isSelf && !isAIMessage && !chatMessage.isEncrypted && <Menu.Item onPress={handleEditPress} title="Edit" leadingIcon="pencil" />}
+						<Menu.Item
+							onPress={handleSavePress}
+							title={chatMessage.isMsgSaved ? 'Remove star' : 'Star message'}
+							leadingIcon={chatMessage.isMsgSaved ? 'star-off-outline' : 'star-outline'}
+						/>
+						{isSelf && !isAIMessage && !chatMessage.isEncrypted && (
+							<Menu.Item onPress={handleEditPress} title="Edit" leadingIcon="pencil" />
+						)}
 						{isSelf && !isAIMessage && (
 							<Menu.Item onPress={handleDeletePress} title="Delete" leadingIcon="delete" titleStyle={{ color: '#ef4444' }} />
 						)}
 					</Menu>
 
-					{/* Reactions */}
-					{(message as ChatMessage).reactions && (message as ChatMessage).reactions!.length > 0 && (
+					{chatMessage.reactions && chatMessage.reactions.length > 0 && (
 						<View style={styles.reactionsRow}>
-							{(message as ChatMessage).reactions!.map((reaction: any, index: number) => {
-								const hasUserReacted = reaction.reactors.some((r: any) => r.uid === user?.uid);
+							{chatMessage.reactions.map((reaction, index) => {
+								const hasUserReacted = reaction.reactors.some((reactor) => reactor.uid === user?.uid);
 								return (
-									<Pressable key={index} onPress={() => handleReactionClick(reaction.id)}>
+									<Pressable key={index} onPress={() => handleEmojiSelect(reaction.id)}>
 										<View
 											style={[
 												styles.reactionChip,
@@ -306,9 +297,7 @@ export default function ChatBubble({
 											]}
 										>
 											<Text style={styles.reactionEmoji}>{reaction.id}</Text>
-											<Text style={[styles.reactionCount, { color: colors.text }]}>
-												{reaction.reactors.length}
-											</Text>
+											<Text style={[styles.reactionCount, { color: colors.text }]}>{reaction.reactors.length}</Text>
 										</View>
 									</Pressable>
 								);
@@ -318,7 +307,6 @@ export default function ChatBubble({
 				</View>
 			</View>
 
-			{/* Dialogs */}
 			<Portal>
 				<Dialog visible={editDialogVisible} onDismiss={() => setEditDialogVisible(false)} style={{ backgroundColor: colors.surface }}>
 					<Dialog.Title style={{ color: colors.text }}>Edit Message</Dialog.Title>
@@ -354,8 +342,8 @@ export default function ChatBubble({
 					<Dialog.Title style={{ color: colors.text }}>React</Dialog.Title>
 					<Dialog.Content>
 						<View style={styles.emojiGrid}>
-							{commonEmojis.map((emoji, index) => (
-								<Pressable key={index} onPress={() => handleEmojiSelect(emoji)}>
+							{COMMON_EMOJIS.map((emoji) => (
+								<Pressable key={emoji} onPress={() => handleEmojiSelect(emoji)}>
 									<View style={[styles.emojiButton, { backgroundColor: isDark ? colors.muted : '#f1f5f9' }]}>
 										<Text style={styles.emoji}>{emoji}</Text>
 									</View>
@@ -443,9 +431,6 @@ const styles = StyleSheet.create({
 		borderRadius: 8,
 		alignItems: 'center',
 		justifyContent: 'center',
-	},
-	fileIconText: {
-		fontSize: 20,
 	},
 	fileInfo: {
 		flex: 1,

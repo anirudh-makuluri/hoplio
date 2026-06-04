@@ -1,273 +1,350 @@
-import React, { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
+"use client";
+
+import React, { useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogFooter,
-	DialogHeader,
-	DialogTitle,
-	DialogTrigger,
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
 } from "@/components/ui/select";
-import { Calendar, Clock, Repeat, Send } from 'lucide-react';
+import { Clock, Repeat } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { useAppDispatch, useAppSelector } from '@/redux/store';
-import { scheduleMessage } from '@/redux/socketSlice';
-import { TScheduleMessageRequest } from '@/lib/types';
-import { useUser } from '@/app/providers';
+import { useAppDispatch } from "@/redux/store";
+import { scheduleMessage } from "@/redux/socketSlice";
+import { TScheduleMessageRequest } from "@/lib/types";
+import { useUser } from "@/app/providers";
 
 interface ScheduleMessageDialogProps {
-	roomId: string;
-	children: React.ReactNode;
+  roomId: string;
+  children: React.ReactNode;
 }
 
-export default function ScheduleMessageDialog({ roomId, children }: ScheduleMessageDialogProps) {
-	const { toast } = useToast();
-	const dispatch = useAppDispatch();
-	const user = useUser()?.user;
-	
-	const [open, setOpen] = useState(false);
-	const [message, setMessage] = useState('');
-	const [scheduledTime, setScheduledTime] = useState('');
-	const [recurring, setRecurring] = useState(false);
-	const [recurringPattern, setRecurringPattern] = useState<'daily' | 'weekly' | 'monthly'>('daily');
-	const [timezone, setTimezone] = useState('UTC');
-	const [loading, setLoading] = useState(false);
+export default function ScheduleMessageDialog({
+  roomId,
+  children,
+}: ScheduleMessageDialogProps) {
+  const { toast } = useToast();
+  const dispatch = useAppDispatch();
+  const user = useUser()?.user;
 
-	// Auto-detect user's timezone
-	useEffect(() => {
-		const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-		setTimezone(userTimezone);
-	}, []);
+  const [open, setOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [recurring, setRecurring] = useState(false);
+  const [recurringPattern, setRecurringPattern] = useState<
+    "daily" | "weekly" | "monthly"
+  >("daily");
+  const [timezone, setTimezone] = useState("UTC");
+  const [loading, setLoading] = useState(false);
 
-	const handleSchedule = async () => {
-		if (!user) {
-			toast({
-				title: "Error",
-				description: "User not found"
-			});
-			return;
-		}
-		const userUid = user.uid;
-		if (!message.trim()) {
-			toast({
-				title: "Error",
-				description: "Message cannot be empty"
-			});
-			return;
-		}
+  useEffect(() => {
+    const userTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    setTimezone(userTimezone);
+  }, []);
 
-		if (!scheduledTime) {
-			toast({
-				title: "Error",
-				description: "Please select a scheduled time"
-			});
-			return;
-		}
+  const handleSchedule = async () => {
+    if (!user) {
+      toast({
+        title: "Error",
+        description: "User not found",
+      });
+      return;
+    }
 
-		const scheduledDateTime = new Date(scheduledTime);
-		if (scheduledDateTime <= new Date()) {
-			toast({
-				title: "Error",
-				description: "Scheduled time must be in the future"
-			});
-			return;
-		}
+    if (!message.trim()) {
+      toast({
+        title: "Error",
+        description: "Message cannot be empty",
+      });
+      return;
+    }
 
-		setLoading(true);
+    if (!scheduledTime) {
+      toast({
+        title: "Error",
+        description: "Please select a scheduled time",
+      });
+      return;
+    }
 
-		try {
-			const scheduledMessageData: TScheduleMessageRequest = {
-				userUid: userUid,
-				roomId,
-				message: message.trim(),
-				messageType: 'text',
-				scheduledTime: scheduledDateTime.toISOString(),
-				recurring,
-				recurringPattern: recurring ? recurringPattern : undefined,
-				timezone
-			};
+    const scheduledDateTime = new Date(scheduledTime);
+    if (scheduledDateTime <= new Date()) {
+      toast({
+        title: "Error",
+        description: "Scheduled time must be in the future",
+      });
+      return;
+    }
 
-			dispatch(scheduleMessage(scheduledMessageData));
+    setLoading(true);
 
-			toast({
-				title: "Success",
-				description: "Message scheduled successfully"
-			});
+    try {
+      const scheduledMessageData: TScheduleMessageRequest = {
+        userUid: user.uid,
+        roomId,
+        message: message.trim(),
+        messageType: "text",
+        scheduledTime: scheduledDateTime.toISOString(),
+        recurring,
+        recurringPattern: recurring ? recurringPattern : undefined,
+        timezone,
+      };
 
-			// Reset form
-			setMessage('');
-			setScheduledTime('');
-			setRecurring(false);
-			setRecurringPattern('daily');
-			setOpen(false);
-		} catch (error) {
-			toast({
-				title: "Error",
-				description: "Failed to schedule message"
-			});
-		} finally {
-			setLoading(false);
-		}
-	};
+      dispatch(scheduleMessage(scheduledMessageData));
 
-	const getMinDateTime = () => {
-		const now = new Date();
-		now.setMinutes(now.getMinutes() + 1); // At least 1 minute in the future
-		// Convert to local datetime-local format (YYYY-MM-DDTHH:MM)
-		// Use toLocaleString to get the local time in the correct format
-		const year = now.getFullYear();
-		const month = String(now.getMonth() + 1).padStart(2, '0');
-		const day = String(now.getDate()).padStart(2, '0');
-		const hours = String(now.getHours()).padStart(2, '0');
-		const minutes = String(now.getMinutes()).padStart(2, '0');
-		return `${year}-${month}-${day}T${hours}:${minutes}`;
-	};
+      toast({
+        title: "Success",
+        description: "Message scheduled successfully",
+      });
 
-	return (
-		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger asChild>
-				{children}
-			</DialogTrigger>
-			<DialogContent className="sm:max-w-[425px]">
-				<DialogHeader>
-					<DialogTitle className="flex items-center gap-2">
-						<Clock className="h-5 w-5" />
-						Schedule Message
-					</DialogTitle>
-					<DialogDescription>
-						Schedule a message to be sent at a specific time in the future.
-					</DialogDescription>
-				</DialogHeader>
-				<div className="grid gap-4 py-4">
-					<div className="grid gap-2">
-						<Label htmlFor="message">Message</Label>
-						<Textarea
-							id="message"
-							placeholder="Type your message here..."
-							value={message}
-							onChange={(e) => setMessage(e.target.value)}
-							className="min-h-[80px]"
-						/>
-					</div>
-					
-					<div className="grid gap-2">
-						<Label htmlFor="scheduledTime">Scheduled Time</Label>
-						<Input
-							id="scheduledTime"
-							type="datetime-local"
-							value={scheduledTime}
-							onChange={(e) => setScheduledTime(e.target.value)}
-							min={getMinDateTime()}
-						/>
-					</div>
+      setMessage("");
+      setScheduledTime("");
+      setRecurring(false);
+      setRecurringPattern("daily");
+      setOpen(false);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to schedule message",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
-					<div className="flex items-center space-x-2">
-						<input
-							type="checkbox"
-							id="recurring"
-							checked={recurring}
-							onChange={(e) => setRecurring(e.target.checked)}
-							className="rounded"
-						/>
-						<Label htmlFor="recurring" className="flex items-center gap-2">
-							<Repeat className="h-4 w-4" />
-							Recurring Message
-						</Label>
-					</div>
+  const getMinDateTime = () => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() + 1);
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    const hours = String(now.getHours()).padStart(2, "0");
+    const minutes = String(now.getMinutes()).padStart(2, "0");
+    return `${year}-${month}-${day}T${hours}:${minutes}`;
+  };
 
-					{recurring && (
-						<div className="grid gap-2">
-							<Label htmlFor="recurringPattern">Repeat Pattern</Label>
-							<Select value={recurringPattern} onValueChange={(value: 'daily' | 'weekly' | 'monthly') => setRecurringPattern(value)}>
-								<SelectTrigger>
-									<SelectValue placeholder="Select repeat pattern" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="daily">Daily</SelectItem>
-									<SelectItem value="weekly">Weekly</SelectItem>
-									<SelectItem value="monthly">Monthly</SelectItem>
-								</SelectContent>
-							</Select>
-						</div>
-					)}
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>{children}</DialogTrigger>
+      <DialogContent className="sm:max-w-[425px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Clock className="h-5 w-5" />
+            Schedule Message
+          </DialogTitle>
+          <DialogDescription>
+            Schedule a message to be sent at a specific time in the future.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="grid gap-4 py-4">
+          <div className="grid gap-2">
+            <Label htmlFor="message">Message</Label>
+            <Textarea
+              id="message"
+              placeholder="Type your message here..."
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              className="min-h-[80px]"
+            />
+          </div>
 
-					<div className="grid gap-2">
-						<Label htmlFor="timezone">Timezone</Label>
-						<Select value={timezone} onValueChange={setTimezone}>
-							<SelectTrigger>
-								<SelectValue placeholder="Select timezone" />
-							</SelectTrigger>
-							<SelectContent className="max-h-[300px]">
-								<SelectItem value={Intl.DateTimeFormat().resolvedOptions().timeZone}>
-									{Intl.DateTimeFormat().resolvedOptions().timeZone} (Auto-detected)
-								</SelectItem>
-								<SelectItem value="UTC">UTC (Coordinated Universal Time)</SelectItem>
-								<SelectItem value="America/New_York">America/New York (EST/EDT)</SelectItem>
-								<SelectItem value="America/Chicago">America/Chicago (CST/CDT)</SelectItem>
-								<SelectItem value="America/Denver">America/Denver (MST/MDT)</SelectItem>
-								<SelectItem value="America/Los_Angeles">America/Los Angeles (PST/PDT)</SelectItem>
-								<SelectItem value="America/Toronto">America/Toronto</SelectItem>
-								<SelectItem value="America/Vancouver">America/Vancouver</SelectItem>
-								<SelectItem value="America/Mexico_City">America/Mexico City</SelectItem>
-								<SelectItem value="America/Sao_Paulo">America/São Paulo</SelectItem>
-								<SelectItem value="Europe/London">Europe/London (GMT/BST)</SelectItem>
-								<SelectItem value="Europe/Paris">Europe/Paris (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Berlin">Europe/Berlin (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Madrid">Europe/Madrid (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Rome">Europe/Rome (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Amsterdam">Europe/Amsterdam (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Brussels">Europe/Brussels (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Vienna">Europe/Vienna (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Stockholm">Europe/Stockholm (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Copenhagen">Europe/Copenhagen (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Oslo">Europe/Oslo (CET/CEST)</SelectItem>
-								<SelectItem value="Europe/Helsinki">Europe/Helsinki (EET/EEST)</SelectItem>
-								<SelectItem value="Europe/Athens">Europe/Athens (EET/EEST)</SelectItem>
-								<SelectItem value="Europe/Moscow">Europe/Moscow (MSK)</SelectItem>
-								<SelectItem value="Europe/Istanbul">Europe/Istanbul (TRT)</SelectItem>
-								<SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
-								<SelectItem value="Asia/Karachi">Asia/Karachi (PKT)</SelectItem>
-								<SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
-								<SelectItem value="Asia/Dhaka">Asia/Dhaka (BST)</SelectItem>
-								<SelectItem value="Asia/Bangkok">Asia/Bangkok (ICT)</SelectItem>
-								<SelectItem value="Asia/Singapore">Asia/Singapore (SGT)</SelectItem>
-								<SelectItem value="Asia/Hong_Kong">Asia/Hong Kong (HKT)</SelectItem>
-								<SelectItem value="Asia/Shanghai">Asia/Shanghai (CST)</SelectItem>
-								<SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
-								<SelectItem value="Asia/Seoul">Asia/Seoul (KST)</SelectItem>
-								<SelectItem value="Australia/Perth">Australia/Perth (AWST)</SelectItem>
-								<SelectItem value="Australia/Adelaide">Australia/Adelaide (ACST/ACDT)</SelectItem>
-								<SelectItem value="Australia/Brisbane">Australia/Brisbane (AEST)</SelectItem>
-								<SelectItem value="Australia/Sydney">Australia/Sydney (AEST/AEDT)</SelectItem>
-								<SelectItem value="Australia/Melbourne">Australia/Melbourne (AEST/AEDT)</SelectItem>
-								<SelectItem value="Pacific/Auckland">Pacific/Auckland (NZST/NZDT)</SelectItem>
-								<SelectItem value="Pacific/Fiji">Pacific/Fiji (FJT)</SelectItem>
-								<SelectItem value="Pacific/Honolulu">Pacific/Honolulu (HST)</SelectItem>
-							</SelectContent>
-						</Select>
-					</div>
-				</div>
-				<DialogFooter>
-					<Button variant="outline" onClick={() => setOpen(false)}>
-						Cancel
-					</Button>
-					<Button onClick={handleSchedule} disabled={loading || !message.trim() || !scheduledTime}>
-						{loading ? 'Scheduling...' : 'Schedule Message'}
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
+          <div className="grid gap-2">
+            <Label htmlFor="scheduledTime">Scheduled Time</Label>
+            <Input
+              id="scheduledTime"
+              type="datetime-local"
+              value={scheduledTime}
+              onChange={(e) => setScheduledTime(e.target.value)}
+              min={getMinDateTime()}
+            />
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <input
+              type="checkbox"
+              id="recurring"
+              checked={recurring}
+              onChange={(e) => setRecurring(e.target.checked)}
+              className="rounded"
+            />
+            <Label htmlFor="recurring" className="flex items-center gap-2">
+              <Repeat className="h-4 w-4" />
+              Recurring Message
+            </Label>
+          </div>
+
+          {recurring && (
+            <div className="grid gap-2">
+              <Label htmlFor="recurringPattern">Repeat Pattern</Label>
+              <Select
+                value={recurringPattern}
+                onValueChange={(value: "daily" | "weekly" | "monthly") =>
+                  setRecurringPattern(value)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select repeat pattern" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                  <SelectItem value="monthly">Monthly</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          <div className="grid gap-2">
+            <Label htmlFor="timezone">Timezone</Label>
+            <Select value={timezone} onValueChange={setTimezone}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select timezone" />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                <SelectItem
+                  value={Intl.DateTimeFormat().resolvedOptions().timeZone}
+                >
+                  {Intl.DateTimeFormat().resolvedOptions().timeZone}{" "}
+                  (Auto-detected)
+                </SelectItem>
+                <SelectItem value="UTC">
+                  UTC (Coordinated Universal Time)
+                </SelectItem>
+                <SelectItem value="America/New_York">
+                  America/New York (EST/EDT)
+                </SelectItem>
+                <SelectItem value="America/Chicago">
+                  America/Chicago (CST/CDT)
+                </SelectItem>
+                <SelectItem value="America/Denver">
+                  America/Denver (MST/MDT)
+                </SelectItem>
+                <SelectItem value="America/Los_Angeles">
+                  America/Los Angeles (PST/PDT)
+                </SelectItem>
+                <SelectItem value="America/Toronto">America/Toronto</SelectItem>
+                <SelectItem value="America/Vancouver">
+                  America/Vancouver
+                </SelectItem>
+                <SelectItem value="America/Mexico_City">
+                  America/Mexico City
+                </SelectItem>
+                <SelectItem value="America/Sao_Paulo">
+                  America/Sao Paulo
+                </SelectItem>
+                <SelectItem value="Europe/London">
+                  Europe/London (GMT/BST)
+                </SelectItem>
+                <SelectItem value="Europe/Paris">
+                  Europe/Paris (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Berlin">
+                  Europe/Berlin (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Madrid">
+                  Europe/Madrid (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Rome">
+                  Europe/Rome (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Amsterdam">
+                  Europe/Amsterdam (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Brussels">
+                  Europe/Brussels (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Vienna">
+                  Europe/Vienna (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Stockholm">
+                  Europe/Stockholm (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Copenhagen">
+                  Europe/Copenhagen (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Oslo">
+                  Europe/Oslo (CET/CEST)
+                </SelectItem>
+                <SelectItem value="Europe/Helsinki">
+                  Europe/Helsinki (EET/EEST)
+                </SelectItem>
+                <SelectItem value="Europe/Athens">
+                  Europe/Athens (EET/EEST)
+                </SelectItem>
+                <SelectItem value="Europe/Moscow">
+                  Europe/Moscow (MSK)
+                </SelectItem>
+                <SelectItem value="Europe/Istanbul">
+                  Europe/Istanbul (TRT)
+                </SelectItem>
+                <SelectItem value="Asia/Dubai">Asia/Dubai (GST)</SelectItem>
+                <SelectItem value="Asia/Karachi">Asia/Karachi (PKT)</SelectItem>
+                <SelectItem value="Asia/Kolkata">Asia/Kolkata (IST)</SelectItem>
+                <SelectItem value="Asia/Dhaka">Asia/Dhaka (BST)</SelectItem>
+                <SelectItem value="Asia/Bangkok">Asia/Bangkok (ICT)</SelectItem>
+                <SelectItem value="Asia/Singapore">
+                  Asia/Singapore (SGT)
+                </SelectItem>
+                <SelectItem value="Asia/Hong_Kong">
+                  Asia/Hong Kong (HKT)
+                </SelectItem>
+                <SelectItem value="Asia/Shanghai">
+                  Asia/Shanghai (CST)
+                </SelectItem>
+                <SelectItem value="Asia/Tokyo">Asia/Tokyo (JST)</SelectItem>
+                <SelectItem value="Asia/Seoul">Asia/Seoul (KST)</SelectItem>
+                <SelectItem value="Australia/Perth">
+                  Australia/Perth (AWST)
+                </SelectItem>
+                <SelectItem value="Australia/Adelaide">
+                  Australia/Adelaide (ACST/ACDT)
+                </SelectItem>
+                <SelectItem value="Australia/Brisbane">
+                  Australia/Brisbane (AEST)
+                </SelectItem>
+                <SelectItem value="Australia/Sydney">
+                  Australia/Sydney (AEST/AEDT)
+                </SelectItem>
+                <SelectItem value="Australia/Melbourne">
+                  Australia/Melbourne (AEST/AEDT)
+                </SelectItem>
+                <SelectItem value="Pacific/Auckland">
+                  Pacific/Auckland (NZST/NZDT)
+                </SelectItem>
+                <SelectItem value="Pacific/Fiji">Pacific/Fiji (FJT)</SelectItem>
+                <SelectItem value="Pacific/Honolulu">
+                  Pacific/Honolulu (HST)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSchedule}
+            disabled={loading || !message.trim() || !scheduledTime}
+          >
+            {loading ? "Scheduling..." : "Schedule Message"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
 }
-

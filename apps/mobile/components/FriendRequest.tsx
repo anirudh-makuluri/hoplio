@@ -41,6 +41,7 @@ export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 						const newRoomData: TRoomData = {
 							is_group: false,
 							messages: [],
+							saved_messages: [],
 							name: invitedUser.name,
 							photo_url: invitedUser.photo_url,
 							roomId: newRoomId,

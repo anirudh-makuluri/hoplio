@@ -4,7 +4,7 @@ import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import GlassSurface from '~/components/GlassSurface';
 
-type TabType = 'chats' | 'calls' | 'updates' | 'profile';
+type TabType = 'chats' | 'updates' | 'profile';
 
 interface BottomNavBarProps {
 	activeTab: TabType;
@@ -24,8 +24,7 @@ export default function BottomNavBar({
 
 	const tabs: { id: TabType; label: string; icon: string; activeIcon: string; badge?: number }[] = [
 		{ id: 'chats', label: 'Chats', icon: 'chat-outline', activeIcon: 'chat', badge: unreadCount },
-		{ id: 'calls', label: 'Calls', icon: 'phone-outline', activeIcon: 'phone' },
-		{ id: 'updates', label: 'Updates', icon: 'update', activeIcon: 'update', badge: pendingRequests },
+		{ id: 'updates', label: 'Friends', icon: 'account-multiple-outline', activeIcon: 'account-multiple', badge: pendingRequests },
 		{ id: 'profile', label: 'Profile', icon: 'account-outline', activeIcon: 'account' },
 	];
 

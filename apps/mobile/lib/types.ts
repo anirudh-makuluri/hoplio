@@ -69,6 +69,7 @@ export type TRoomData = {
 	is_group: boolean;
 	roomId: string;
 	messages: (ChatMessage | ChatDate)[];
+	saved_messages?: (ChatMessage | ChatDate)[];
 	name: string;
 	photo_url: string;
 	currentChatDocId?: string;
