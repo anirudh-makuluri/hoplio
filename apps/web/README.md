@@ -118,8 +118,8 @@ A modern, feature-rich real-time chat application built with Next.js, featuring 
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/anirudh-makuluri/chatify-next
-cd chatify-next
+git clone https://github.com/anirudh-makuluri/chatify
+cd chatify
 ```
 
 2. Install dependencies:
