@@ -17,8 +17,8 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-	title: "Hoplio",
-	description: "Upgrading your chatting experience!",
+	title: "Hoplio — One connection. Everyone online.",
+	description: "Hoplio is building peer-to-peer mesh networking where a single device with internet keeps the entire network connected. End-to-end encrypted, AI-powered chat.",
 };
 
 export default function RootLayout({
