@@ -16,4 +16,14 @@
 			"@firebase/auth": ["./node_modules/@firebase/auth/dist/index.rn.d.ts"]
 		}
 	},
+	"include": [
+		"**/*.ts",
+		"**/*.tsx",
+		"nativewind-env.d.ts"
+	],
+	"exclude": [
+		"android",
+		"vendor-node_modules",
+		"node_modules"
+	]
 }

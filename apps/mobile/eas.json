@@ -12,11 +12,20 @@
       "android": {
         "buildType": "app-bundle"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+      }
     },
     "production": {
+      "distribution": "store",
       "android": {
-        "buildType": "apk"
+        "buildType": "app-bundle",
+        "autoIncrement": true
+      },
+      "channel": "production",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
       }
     },
     "apk": {
@@ -31,7 +40,10 @@
         "buildType": "app-bundle",
         "autoIncrement": true
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+      }
     },
     "development-simulator": {
       "developmentClient": true,

@@ -181,7 +181,7 @@ export default function ChatBubble({
 						anchor={
 							<Pressable onLongPress={openMenu} delayLongPress={400}>
 								<View style={[styles.bubble, getBubbleStyle()]}>
-									{chatMessage.type === 'image' && (
+									{(chatMessage.type === 'image' || chatMessage.type === 'gif') && (
 										<Image source={{ uri: chatMessage.chatInfo }} style={styles.imageContent} resizeMode="cover" />
 									)}
 

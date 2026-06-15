@@ -53,6 +53,10 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 			return `${senderName}: Photo`;
 		}
 
+		if (msg.type === 'gif') {
+			return `${senderName}: GIF`;
+		}
+
 		if (msg.type === 'file') {
 			return `${senderName}: ${msg.fileName || 'File'}`;
 		}

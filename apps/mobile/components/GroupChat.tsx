@@ -19,7 +19,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { useUser } from '~/app/providers';
 import { useTheme } from '~/lib/themeContext';
-import { TUser } from '~/lib/types';
+import { TRoomData, TUser } from '~/lib/types';
 import { getErrorMessage, uploadFile } from '~/lib/utils';
 import {
 	addMembersToGroupService,
@@ -85,7 +85,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 		return friend?.photo_url || 'https://ui-avatars.com/api/?name=Member';
 	};
 
-	const updateUserRoomLocally = (transform: (rooms: typeof user.rooms) => typeof user.rooms) => {
+	const updateUserRoomLocally = (transform: (rooms: TRoomData[]) => TRoomData[]) => {
 		if (!user) return;
 		updateUser({ rooms: transform(user.rooms || []) });
 	};

@@ -24,6 +24,8 @@ export default function Friends() {
   const { user } = useUser();
   const { colors } = useTheme();
   const userPresence = useAppSelector((state) => state.chat.userPresence);
+  const friendList = user?.friend_list ?? [];
+  const receivedRequests = user?.received_friend_requests ?? [];
 
   const [searchUser, setSearchUser] = useState("");
   const [fetchedUsers, setFetchedUsers] = useState<TUser[]>([]);
@@ -174,7 +176,7 @@ export default function Friends() {
                 }}
               />
               <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-                {user?.friend_list?.length || 0} friends
+                {friendList.length} friends
               </Text>
             </View>
             <View className="flex-row items-center gap-2">
@@ -187,13 +189,13 @@ export default function Friends() {
                 }}
               />
               <Text style={{ fontSize: 14, color: colors.textSecondary }}>
-                {user?.received_friend_requests?.length || 0} requests
+                {receivedRequests.length} requests
               </Text>
             </View>
           </View>
         </View>
 
-        {user?.friend_list && user.friend_list.length > 0 && (
+        {friendList.length > 0 && (
           <View style={{ maxHeight: 260 }}>
             <View
               style={{
@@ -211,11 +213,11 @@ export default function Friends() {
                   color: colors.textSecondary,
                 }}
               >
-                Friends ({user.friend_list.length})
+                Friends ({friendList.length})
               </Text>
             </View>
             <FlatList
-              data={user.friend_list}
+              data={friendList}
               keyExtractor={(item) => item.uid}
               renderItem={({ item }) => {
                 const presence = getUserPresence(item.uid);
@@ -288,7 +290,7 @@ export default function Friends() {
           </View>
         )}
 
-        {user?.received_friend_requests?.length === 0 ? (
+        {receivedRequests.length === 0 ? (
           renderEmptyState()
         ) : (
           <View className="flex-1">
@@ -308,11 +310,11 @@ export default function Friends() {
                   color: colors.textSecondary,
                 }}
               >
-                Friend Requests ({user.received_friend_requests.length})
+                Friend Requests ({receivedRequests.length})
               </Text>
             </View>
             <FlatList
-              data={user.received_friend_requests}
+              data={receivedRequests}
               keyExtractor={(item) => item.uid}
               renderItem={({ item }) => <FriendRequest invitedUser={item} />}
               showsVerticalScrollIndicator={false}

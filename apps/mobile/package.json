@@ -1,7 +1,7 @@
 {
   "name": "@hoplio/mobile",
   "version": "1.0.0",
-  "main": "expo-router/entry",
+  "main": "index.js",
   "scripts": {
     "start": "expo start --dev-client",
     "prepare:android": "node ./scripts/prepare-expo-native-paths.js",
@@ -27,7 +27,6 @@
     "@reduxjs/toolkit": "^2.11.2",
     "babel-preset-expo": "^54.0.10",
     "blakejs": "^1.2.1",
-    "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
     "expo": "^54.0.0",
     "expo-blur": "~15.0.8",
@@ -37,7 +36,6 @@
     "expo-image-picker": "~17.0.10",
     "expo-linking": "~8.0.11",
     "expo-router": "~6.0.23",
-    "expo-status-bar": "~3.0.9",
     "expo-system-ui": "~6.0.9",
     "firebase": "^10.10.0",
     "nativewind": "^4.0.1",
@@ -54,7 +52,6 @@
     "react-redux": "^9.2.0",
     "socket.io-client": "^4.7.5",
     "tailwind-merge": "^2.2.2",
-    "tailwindcss-animate": "^1.0.7",
     "tweetnacl": "^1.0.3"
   },
   "overrides": {
@@ -62,6 +59,7 @@
     "react-dom": "19.1.4"
   },
   "devDependencies": {
+    "@babel/plugin-transform-react-jsx": "^7.28.6",
     "@babel/core": "^7.20.0",
     "@types/react": "~19.1.10",
     "semver": "^7.8.1",

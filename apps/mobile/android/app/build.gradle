@@ -3,7 +3,9 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
-project.ext.REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = new File(rootDir.getParentFile(), "vendor-node_modules/react-native-worklets").absolutePath
+def shortNativeVendorRoot = System.getenv('HOPLIO_NATIVE_VENDOR_ROOT') ?: ((System.getenv('SystemDrive') ?: 'C:') + '/hoplio-native')
+def shortNativeBuildRoot = System.getenv('HOPLIO_NATIVE_BUILD_ROOT') ?: ((System.getenv('SystemDrive') ?: 'C:') + '/hoplio-cxx')
+project.ext.REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = new File(shortNativeVendorRoot, "react-native-worklets").absolutePath
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -18,7 +20,7 @@ react {
     enableBundleCompression = (findProperty('android.enableBundleCompression') ?: false).toBoolean()
     // Use Expo CLI to bundle the app, this ensures the Metro config
     // works correctly with Expo projects.
-    cliFile = new File(["node", "--print", "require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })"].execute(null, rootDir).text.trim())
+    cliFile = new File(projectRoot + "/scripts/expo-cli-release.js")
     bundleCommand = "export:embed"
 
     /* Folders */
@@ -67,7 +69,14 @@ react {
 /**
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
-def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: false).toBoolean()
+def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: true).toBoolean()
+def resolveReleaseSigningValue = { key -> findProperty(key) ?: System.getenv(key) }
+def hasReleaseSigning = [
+    'HOPLIO_UPLOAD_STORE_FILE',
+    'HOPLIO_UPLOAD_STORE_PASSWORD',
+    'HOPLIO_UPLOAD_KEY_ALIAS',
+    'HOPLIO_UPLOAD_KEY_PASSWORD',
+].every { resolveReleaseSigningValue(it) }
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -105,16 +114,29 @@ android {
             keyAlias 'androiddebugkey'
             keyPassword 'android'
         }
+        if (hasReleaseSigning) {
+            release {
+                storeFile file(resolveReleaseSigningValue('HOPLIO_UPLOAD_STORE_FILE'))
+                storePassword resolveReleaseSigningValue('HOPLIO_UPLOAD_STORE_PASSWORD')
+                keyAlias resolveReleaseSigningValue('HOPLIO_UPLOAD_KEY_ALIAS')
+                keyPassword resolveReleaseSigningValue('HOPLIO_UPLOAD_KEY_PASSWORD')
+            }
+        }
     }
     buildTypes {
         debug {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
-            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
+            if (!hasReleaseSigning) {
+                throw new GradleException(
+                    "Release signing is not configured. Set HOPLIO_UPLOAD_STORE_FILE, " +
+                    "HOPLIO_UPLOAD_STORE_PASSWORD, HOPLIO_UPLOAD_KEY_ALIAS, and " +
+                    "HOPLIO_UPLOAD_KEY_PASSWORD before building a release bundle."
+                )
+            }
+            signingConfig signingConfigs.release
+            def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
@@ -131,11 +153,28 @@ android {
     androidResources {
         ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:!CVS:!thumbs.db:!picasa.ini:!*~'
     }
+    externalNativeBuild {
+        cmake {
+            buildStagingDirectory new File(shortNativeBuildRoot, "app")
+        }
+    }
 }
 
 tasks.matching { it.name.startsWith("externalNativeBuildClean") }.configureEach {
     doFirst {
         delete(file(".cxx"), file("$buildDir/generated/autolinking"))
+    }
+}
+
+gradle.projectsEvaluated {
+    def workletsProject = findProject(":react-native-worklets")
+    def reanimatedProject = findProject(":react-native-reanimated")
+    def workletsPrefabTask = workletsProject?.tasks?.findByName("prefabReleasePackage")
+
+    if (workletsPrefabTask != null && reanimatedProject != null) {
+        reanimatedProject.tasks.matching { it.name.startsWith("configureCMakeRelWithDebInfo") }.configureEach {
+            dependsOn(workletsPrefabTask)
+        }
     }
 }
 

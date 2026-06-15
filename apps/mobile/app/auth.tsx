@@ -1,42 +1,18 @@
 import React, { useEffect, useState } from 'react';
-import { LogBox, View, StyleSheet, TouchableOpacity } from 'react-native';
-import {
-	Text,
-	Button,
-	TextInput,
-	Snackbar,
-	ActivityIndicator,
-} from 'react-native-paper';
-import { useUser } from './providers';
+import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Button, Snackbar, Text, TextInput } from 'react-native-paper';
 import { router } from 'expo-router';
-import { initializeApp } from 'firebase/app';
-import {
-	initializeAuth,
-	GoogleAuthProvider,
-	User,
-	createUserWithEmailAndPassword,
-	signInWithEmailAndPassword,
-	signInWithCredential,
-	getReactNativePersistence,
-} from 'firebase/auth';
-import { config } from '~/lib/config';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { customFetch } from '~/lib/utils';
+import { GoogleAuthProvider, User, createUserWithEmailAndPassword, signInWithCredential, signInWithEmailAndPassword } from '@firebase/auth';
 import { GoogleSignin } from '@react-native-google-signin/google-signin';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useUser } from './providers';
+import BrandScreen from '~/components/BrandScreen';
+import { auth } from '~/lib/firebase';
+import { customFetch } from '~/lib/utils';
 import { offlineStorage } from '~/lib/offlineStorage';
-import { useTheme } from '~/lib/themeContext';
 
-const app = initializeApp(config.firebaseConfig);
-const auth = initializeAuth(app, {
-	persistence: getReactNativePersistence(AsyncStorage),
-});
-const provider = new GoogleAuthProvider();
-provider.setCustomParameters({ prompt: 'select_account' });
-
-export default function Page() {
+export default function AuthPage() {
 	const { user, isLoading, isLoggingOut, login, loginOffline } = useUser();
-	const { colors } = useTheme();
 	const [isSignIn, setSignIn] = useState(true);
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
@@ -46,8 +22,7 @@ export default function Page() {
 
 	useEffect(() => {
 		GoogleSignin.configure({
-			webClientId:
-				'1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com',
+			webClientId: '1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com',
 		});
 	}, []);
 
@@ -56,10 +31,11 @@ export default function Page() {
 			router.replace('/home');
 			return;
 		}
+
 		if (!isLoggingOut) {
-			checkOfflineData();
+			void checkOfflineData();
 		}
-	}, [user, isLoading, isLoggingOut]);
+	}, [isLoading, isLoggingOut, user]);
 
 	const checkOfflineData = async () => {
 		try {
@@ -70,328 +46,377 @@ export default function Page() {
 		}
 	};
 
-	async function authWithEmailAndPassword() {
-		if (
-			email == null ||
-			email.trim() == '' ||
-			password == null ||
-			password.trim() == ''
-		) {
-			setSnackbarMsg('Email or Password not given');
+	const authWithEmailAndPassword = async () => {
+		if (!email.trim() || !password.trim()) {
+			setSnackbarMsg('Email and password are required.');
 			return;
 		}
+
 		setIsAuthenticating(true);
 		setSnackbarMsg('');
+
 		try {
-			if (isSignIn) {
-				const { user } = await signInWithEmailAndPassword(auth, email, password);
-				setSession(user);
-			} else {
-				const { user } = await createUserWithEmailAndPassword(
-					auth,
-					email,
-					password
-				);
-				setSession(user);
-			}
+			const credential = isSignIn
+				? await signInWithEmailAndPassword(auth, email.trim(), password)
+				: await createUserWithEmailAndPassword(auth, email.trim(), password);
+
+			await setSession(credential.user);
 		} catch (error: any) {
 			let errorMessage = error.message;
+
 			switch (error.code) {
 				case 'auth/email-already-in-use':
-					errorMessage = 'The email address is already in use by another account.';
+					errorMessage = 'That email is already being used by another account.';
 					break;
 				case 'auth/invalid-email':
-					errorMessage = 'The email address is invalid.';
+					errorMessage = 'Enter a valid email address.';
 					break;
 				case 'auth/weak-password':
-					errorMessage = 'The password is too weak.';
+					errorMessage = 'Choose a stronger password.';
 					break;
 				case 'auth/invalid-credential':
-					errorMessage = 'Account not found';
+					errorMessage = 'Account not found. Check your email and password.';
 					break;
 			}
+
 			setSnackbarMsg(errorMessage);
 			setIsAuthenticating(false);
 		}
-	}
+	};
 
-	async function authWithGoogle() {
-		console.log('[GoogleSignIn] button pressed');
+	const authWithGoogle = async () => {
 		setIsAuthenticating(true);
 		setSnackbarMsg('');
+
 		try {
-			console.log('[GoogleSignIn] checking Play Services');
 			await GoogleSignin.hasPlayServices();
-			console.log('[GoogleSignIn] Play Services available');
-			console.log('[GoogleSignIn] starting native sign-in');
-			const { idToken } = await GoogleSignin.signIn();
-			console.log('[GoogleSignIn] native sign-in resolved', {
-				hasIdToken: !!idToken,
-			});
+			const response = await GoogleSignin.signIn();
+			const idToken = response.idToken;
+
 			if (!idToken) {
-				console.warn('[GoogleSignIn] sign-in resolved without idToken');
+				throw new Error('Google sign-in did not return an ID token.');
 			}
-			console.log('[GoogleSignIn] creating Firebase credential');
+
 			const googleCredential = GoogleAuthProvider.credential(idToken);
-			console.log('[GoogleSignIn] signing in to Firebase');
 			const userCredentials = await signInWithCredential(auth, googleCredential);
-			const user = userCredentials.user;
-			console.log('[GoogleSignIn] Firebase sign-in resolved', {
-				uid: user.uid,
-			});
-			console.log('[GoogleSignIn] setting session');
-			setSession(user);
-			console.log('[GoogleSignIn] revoking Google access');
+			await setSession(userCredentials.user);
 			await GoogleSignin.revokeAccess();
-			console.log('[GoogleSignIn] signing out of Google client');
 			await GoogleSignin.signOut();
-			console.log('[GoogleSignIn] flow completed');
 		} catch (error: any) {
 			console.warn('Google Sign-In error:', {
 				code: error.code,
 				message: error.message,
-				stack: error.stack,
 			});
-			setSnackbarMsg('Error occurred while trying to sign in with Google');
+			setSnackbarMsg('Unable to sign in with Google right now. Please try again.');
 			setIsAuthenticating(false);
 		}
-	}
+	};
 
-	async function setSession(user: User | null) {
-		if (!user) throw new Error('User not found');
-		console.log('[GoogleSignIn] fetching Firebase ID token');
-		const idToken = await user.getIdToken(true);
-		console.log('[GoogleSignIn] posting session to backend');
-		customFetch({
-			pathName: 'session',
-			method: 'POST',
-			body: { idToken },
-		})
-			.then(() => {
-				console.log('[GoogleSignIn] backend session created');
-				auth.signOut();
-				login();
-			})
-			.catch(() => {
-				console.warn('[GoogleSignIn] backend session creation failed');
-				setSnackbarMsg('Authentication failed. Please try again.');
-				setIsAuthenticating(false);
+	const setSession = async (firebaseUser: User | null) => {
+		if (!firebaseUser) {
+			throw new Error('User not found');
+		}
+
+		try {
+			const idToken = await firebaseUser.getIdToken(true);
+			await customFetch({
+				pathName: 'session',
+				method: 'POST',
+				body: { idToken },
 			});
-	}
+			await auth.signOut();
+			await login();
+		} catch (error) {
+			console.warn('Session creation failed:', error);
+			setSnackbarMsg('Authentication failed. Please try again.');
+			setIsAuthenticating(false);
+		}
+	};
 
-	async function handleOfflineLogin() {
+	const handleOfflineLogin = async () => {
 		setIsAuthenticating(true);
+
 		try {
 			await loginOffline();
-			setSnackbarMsg('Logged in offline with cached data');
+			setSnackbarMsg('Logged in offline with your cached data.');
 		} catch {
-			setSnackbarMsg('Failed to login offline');
+			setSnackbarMsg('Offline login failed.');
 		} finally {
 			setIsAuthenticating(false);
 		}
-	}
-
-	const Divider = () => (
-		<View style={styles.dividerRow}>
-			<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-			<Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR</Text>
-			<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-		</View>
-	);
+	};
 
 	return (
-		<SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>
-			<View style={[styles.container, { backgroundColor: colors.background }]}>
-				{isLoggingOut ? (
-					<View style={[styles.card, { backgroundColor: colors.surface }]}>
-						<ActivityIndicator size="large" color={colors.primary} />
-						<Text style={[styles.cardTitle, { color: colors.text }]}>
-							Logging out...
-						</Text>
-						<Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-							Please wait while we sign you out
-						</Text>
-					</View>
-				) : isAuthenticating ? (
-					<View style={[styles.card, { backgroundColor: colors.surface }]}>
-						<ActivityIndicator size="large" color={colors.primary} />
-						<Text style={[styles.cardTitle, { color: colors.text }]}>
-							{isSignIn ? 'Signing you in...' : 'Creating your account...'}
-						</Text>
-						<Text style={[styles.cardSubtitle, { color: colors.textSecondary }]}>
-							Please wait while we authenticate with the server
+		<BrandScreen contentStyle={styles.content}>
+			<SafeAreaView style={styles.safeArea}>
+				<ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+					<View style={styles.hero}>
+						<View style={styles.badge}>
+							<Text style={styles.badgeText}>Private by default</Text>
+						</View>
+						<View style={styles.logoWrap}>
+							<Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
+						</View>
+						<Text style={styles.wordmark}>hoplio</Text>
+						<Text style={styles.title}>{isSignIn ? 'Welcome back' : 'Create your account'}</Text>
+						<Text style={styles.subtitle}>
+							{isSignIn
+								? 'Pick up your encrypted conversations across mobile and web.'
+								: 'Start with secure chat, AI assistance, and smart message search.'}
 						</Text>
 					</View>
-				) : (
-					<View style={styles.form}>
-						<Text style={[styles.welcomeTitle, { color: colors.text }]}>
-							Welcome to Hoplio
-						</Text>
-						<Text style={[styles.welcomeSubtitle, { color: colors.textSecondary }]}>
-							Sign in or create an account to continue
-						</Text>
 
-						{hasOfflineData && (
+					<View style={styles.card}>
+						{isLoggingOut ? (
+							<View style={styles.loadingState}>
+								<ActivityIndicator size="large" color="#22d3ee" />
+								<Text style={styles.loadingTitle}>Logging out...</Text>
+								<Text style={styles.loadingCopy}>Clearing your current session.</Text>
+							</View>
+						) : isAuthenticating ? (
+							<View style={styles.loadingState}>
+								<ActivityIndicator size="large" color="#22d3ee" />
+								<Text style={styles.loadingTitle}>
+									{isSignIn ? 'Signing you in...' : 'Creating your account...'}
+								</Text>
+								<Text style={styles.loadingCopy}>Checking with the Hoplio backend.</Text>
+							</View>
+						) : (
 							<>
+								{hasOfflineData && (
+									<>
+										<Button mode="outlined" onPress={handleOfflineLogin} style={styles.offlineButton} textColor="#e2e8f0" icon="wifi-off">
+											Continue Offline
+										</Button>
+										<View style={styles.dividerRow}>
+											<View style={styles.dividerLine} />
+											<Text style={styles.dividerText}>OR</Text>
+											<View style={styles.dividerLine} />
+										</View>
+									</>
+								)}
+
 								<Button
-									mode="outlined"
-									onPress={handleOfflineLogin}
+									mode="contained"
+									onPress={authWithGoogle}
 									disabled={isAuthenticating}
-									icon="wifi-off"
-									style={[styles.button, { borderColor: colors.primary }]}
-									labelStyle={{ color: colors.primary }}
+									icon="google"
+									style={styles.googleButton}
+									labelStyle={styles.googleLabel}
 								>
-									Continue Offline
+									{isSignIn ? 'Continue with Google' : 'Sign up with Google'}
 								</Button>
-								<Divider />
+
+								<View style={styles.dividerRow}>
+									<View style={styles.dividerLine} />
+									<Text style={styles.dividerText}>OR</Text>
+									<View style={styles.dividerLine} />
+								</View>
+
+								<TextInput
+									label="Email"
+									value={email}
+									mode="outlined"
+									keyboardType="email-address"
+									autoCapitalize="none"
+									autoComplete="email"
+									style={styles.input}
+									onChangeText={(text) => setEmail(text.toLowerCase())}
+									disabled={isAuthenticating}
+									outlineColor="rgba(148,163,184,0.28)"
+									activeOutlineColor="#22d3ee"
+									textColor="#f8fafc"
+									theme={{ colors: { onSurfaceVariant: '#94a3b8' } }}
+								/>
+								<TextInput
+									label="Password"
+									value={password}
+									mode="outlined"
+									secureTextEntry
+									autoComplete={isSignIn ? 'password' : 'new-password'}
+									style={styles.input}
+									onChangeText={setPassword}
+									disabled={isAuthenticating}
+									outlineColor="rgba(148,163,184,0.28)"
+									activeOutlineColor="#22d3ee"
+									textColor="#f8fafc"
+									theme={{ colors: { onSurfaceVariant: '#94a3b8' } }}
+								/>
+								<Button mode="contained" onPress={authWithEmailAndPassword} disabled={isAuthenticating} style={styles.primaryButton}>
+									{isSignIn ? 'Sign In' : 'Create Account'}
+								</Button>
+
+								<TouchableOpacity onPress={() => setSignIn((prev) => !prev)} disabled={isAuthenticating} style={styles.toggleRow}>
+									<Text style={styles.toggleCopy}>
+										{isSignIn ? "Don't have an account? " : 'Already have an account? '}
+									</Text>
+									<Text style={styles.toggleAction}>{isSignIn ? 'Create account' : 'Sign in'}</Text>
+								</TouchableOpacity>
+
+								<Text style={styles.legalCopy}>By continuing, you agree to the Hoplio Terms and Privacy Policy.</Text>
 							</>
 						)}
-
-						<Button
-							mode="contained"
-							onPress={authWithGoogle}
-							disabled={isAuthenticating}
-							icon="google"
-							style={[styles.button, { backgroundColor: colors.primary, display: 'none' }]}
-						>
-							{isSignIn ? 'Sign In' : 'Sign Up'} With Google
-						</Button>
-						{/*<Divider /> */}
-
-						<TextInput
-							label="Email"
-							value={email}
-							mode="outlined"
-							keyboardType="email-address"
-							autoCapitalize="none"
-							style={styles.input}
-							onChangeText={(text) => setEmail(text.toLowerCase())}
-							disabled={isAuthenticating}
-							outlineColor={colors.border}
-							activeOutlineColor={colors.primary}
-							textColor={colors.text}
-						/>
-						<TextInput
-							label="Password"
-							value={password}
-							mode="outlined"
-							secureTextEntry
-							style={styles.input}
-							onChangeText={setPassword}
-							disabled={isAuthenticating}
-							outlineColor={colors.border}
-							activeOutlineColor={colors.primary}
-							textColor={colors.text}
-						/>
-						<Button
-							mode="contained"
-							onPress={authWithEmailAndPassword}
-							disabled={isAuthenticating}
-							style={[styles.button, { backgroundColor: colors.primary }]}
-						>
-							{isSignIn ? 'Sign In' : 'Sign Up'}
-						</Button>
-
-						<TouchableOpacity
-							onPress={() => setSignIn((prev) => !prev)}
-							disabled={isAuthenticating}
-							style={styles.toggleRow}
-						>
-							<Text style={{ color: colors.textSecondary }}>
-								{isSignIn ? "Don't have an account? " : 'Already have an account? '}
-							</Text>
-							<Text style={{ color: colors.primary, fontWeight: '600' }}>
-								{isSignIn ? 'Create account' : 'Sign in'}
-							</Text>
-						</TouchableOpacity>
 					</View>
-				)}
+				</ScrollView>
+			</SafeAreaView>
 
-				<Snackbar
-					visible={snackbarMsg.length > 0}
-					duration={5000}
-					onDismiss={() => setSnackbarMsg('')}
-					style={{ backgroundColor: colors.surfaceElevated ?? colors.surface }}
-				>
-					{snackbarMsg}
-				</Snackbar>
-			</View>
-		</SafeAreaView>
+			<Snackbar visible={snackbarMsg.length > 0} duration={5000} onDismiss={() => setSnackbarMsg('')} style={styles.snackbar}>
+				{snackbarMsg}
+			</Snackbar>
+		</BrandScreen>
 	);
 }
 
 const styles = StyleSheet.create({
-	safe: { flex: 1 },
-	container: {
+	content: {
 		flex: 1,
+	},
+	safeArea: {
+		flex: 1,
+	},
+	scrollContent: {
+		flexGrow: 1,
+		paddingHorizontal: 24,
+		paddingVertical: 18,
 		justifyContent: 'center',
-		alignItems: 'center',
-		paddingHorizontal: 24,
 	},
-	card: {
-		width: '88%',
-		paddingVertical: 40,
-		paddingHorizontal: 24,
+	hero: {
 		alignItems: 'center',
-		borderRadius: 16,
+		marginBottom: 28,
 	},
-	cardTitle: {
-		fontSize: 16,
-		fontWeight: '600',
-		marginTop: 16,
+	badge: {
+		paddingHorizontal: 14,
+		paddingVertical: 7,
+		borderRadius: 999,
+		backgroundColor: 'rgba(34,211,238,0.12)',
+		borderWidth: 1,
+		borderColor: 'rgba(34,211,238,0.26)',
+		marginBottom: 18,
+	},
+	badgeText: {
+		color: '#67e8f9',
+		fontSize: 12,
+		fontWeight: '700',
+	},
+	logoWrap: {
+		width: 92,
+		height: 92,
+		borderRadius: 28,
+		backgroundColor: 'rgba(15,23,42,0.5)',
+		borderWidth: 1,
+		borderColor: 'rgba(148,163,184,0.18)',
+		alignItems: 'center',
+		justifyContent: 'center',
+		marginBottom: 16,
+	},
+	logo: {
+		width: 72,
+		height: 72,
+	},
+	wordmark: {
+		fontSize: 17,
+		fontWeight: '700',
+		color: '#67e8f9',
+		letterSpacing: 1.1,
+		textTransform: 'lowercase',
+		marginBottom: 10,
+	},
+	title: {
+		fontSize: 30,
+		fontWeight: '800',
+		color: '#ffffff',
+		marginBottom: 10,
 		textAlign: 'center',
 	},
-	cardSubtitle: {
+	subtitle: {
+		fontSize: 15,
+		lineHeight: 22,
+		color: 'rgba(226,232,240,0.82)',
+		textAlign: 'center',
+		maxWidth: 330,
+	},
+	card: {
+		borderRadius: 24,
+		padding: 20,
+		backgroundColor: 'rgba(15,23,42,0.72)',
+		borderWidth: 1,
+		borderColor: 'rgba(148,163,184,0.14)',
+	},
+	loadingState: {
+		alignItems: 'center',
+		paddingVertical: 24,
+	},
+	loadingTitle: {
+		color: '#f8fafc',
+		fontSize: 16,
+		fontWeight: '700',
+		marginTop: 16,
+	},
+	loadingCopy: {
+		color: '#94a3b8',
 		fontSize: 14,
 		marginTop: 8,
 		textAlign: 'center',
 	},
-	form: {
-		width: '100%',
-		maxWidth: 340,
-		alignItems: 'center',
-		gap: 4,
+	offlineButton: {
+		borderRadius: 14,
+		borderColor: 'rgba(148,163,184,0.28)',
+		marginBottom: 6,
 	},
-	welcomeTitle: {
-		fontSize: 24,
+	googleButton: {
+		borderRadius: 14,
+		backgroundColor: '#22d3ee',
+	},
+	googleLabel: {
+		color: '#082f49',
 		fontWeight: '700',
-		marginBottom: 4,
-	},
-	welcomeSubtitle: {
-		fontSize: 14,
-		marginBottom: 24,
-	},
-	button: {
-		width: '100%',
-		borderRadius: 12,
-		marginVertical: 4,
-	},
-	input: {
-		width: '100%',
-		borderRadius: 12,
-		marginVertical: 4,
 	},
 	dividerRow: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		justifyContent: 'center',
 		gap: 12,
-		marginVertical: 12,
-		width: '100%',
+		marginVertical: 16,
 	},
 	dividerLine: {
+		flex: 1,
 		height: 1,
-		width: '28%',
+		backgroundColor: 'rgba(148,163,184,0.18)',
 	},
 	dividerText: {
+		color: '#94a3b8',
 		fontSize: 12,
-		fontWeight: '500',
+		fontWeight: '600',
+	},
+	input: {
+		marginBottom: 12,
+		backgroundColor: 'rgba(15,23,42,0.38)',
+	},
+	primaryButton: {
+		marginTop: 4,
+		borderRadius: 14,
+		backgroundColor: '#0ea5e9',
 	},
 	toggleRow: {
 		flexDirection: 'row',
-		alignItems: 'center',
-		marginTop: 16,
-		flexWrap: 'wrap',
 		justifyContent: 'center',
+		flexWrap: 'wrap',
+		marginTop: 18,
+	},
+	toggleCopy: {
+		color: '#94a3b8',
+	},
+	toggleAction: {
+		color: '#67e8f9',
+		fontWeight: '700',
+	},
+	legalCopy: {
+		marginTop: 14,
+		color: '#64748b',
+		fontSize: 12,
+		textAlign: 'center',
+		lineHeight: 18,
+	},
+	snackbar: {
+		backgroundColor: 'rgba(15,23,42,0.94)',
 	},
 });
