@@ -10,27 +10,27 @@
 		--font-heading: var(--font-sora);
 		--font-body: var(--font-outfit);
 		
-		/* Light Mode Color Palette - Blue Theme */
-		--background: 0 0% 100%;
-		--foreground: 222 47% 11%;
-		--card: 0 0% 100%;
-		--card-foreground: 222 47% 11%;
-		--popover: 0 0% 100%;
-		--popover-foreground: 222 47% 11%;
-		--primary: 217 91% 60%;
-		--primary-foreground: 0 0% 100%;
-		--secondary: 210 40% 96%;
-		--secondary-foreground: 222 47% 11%;
-		--muted: 210 40% 96%;
-		--muted-foreground: 215 16% 47%;
+		/* App Palette - Dark Landing Theme */
+		--background: 224 45% 9%;
+		--foreground: 214 32% 93%;
+		--card: 224 39% 13%;
+		--card-foreground: 214 32% 93%;
+		--popover: 224 39% 12%;
+		--popover-foreground: 214 32% 93%;
+		--primary: 195 85% 55%;
+		--primary-foreground: 222 47% 11%;
+		--secondary: 221 31% 18%;
+		--secondary-foreground: 214 32% 93%;
+		--muted: 220 26% 18%;
+		--muted-foreground: 215 20% 69%;
 		--accent: 217 91% 60%;
-		--accent-foreground: 0 0% 100%;
+		--accent-foreground: 214 32% 93%;
 		--destructive: 0 84.2% 60.2%;
 		--destructive-foreground: 0 0% 98%;
-		--border: 214 32% 91%;
-		--input: 214 32% 91%;
-		--ring: 217 91% 60%;
-		--radius: 0.75rem;
+		--border: 220 23% 24%;
+		--input: 220 23% 24%;
+		--ring: 195 85% 55%;
+		--radius: 1rem;
 		
 		/* Landing Page Specific Colors - Light Mode */
 		--landing-bg-start: 214 100% 97%;
@@ -42,24 +42,24 @@
 	}
 
 	.light {
-		--background: 0 0% 100%;
-		--foreground: 222 47% 11%;
-		--card: 0 0% 100%;
-		--card-foreground: 222 47% 11%;
-		--popover: 0 0% 100%;
-		--popover-foreground: 222 47% 11%;
+		--background: 224 45% 9%;
+		--foreground: 214 32% 93%;
+		--card: 224 39% 13%;
+		--card-foreground: 214 32% 93%;
+		--popover: 224 39% 12%;
+		--popover-foreground: 214 32% 93%;
 		--primary: 217 91% 60%;
-		--primary-foreground: 0 0% 100%;
-		--secondary: 210 40% 96%;
-		--secondary-foreground: 222 47% 11%;
-		--muted: 210 40% 96%;
-		--muted-foreground: 215 16% 47%;
+		--primary-foreground: 222 47% 11%;
+		--secondary: 221 31% 18%;
+		--secondary-foreground: 214 32% 93%;
+		--muted: 220 26% 18%;
+		--muted-foreground: 215 20% 69%;
 		--accent: 217 91% 60%;
-		--accent-foreground: 0 0% 100%;
+		--accent-foreground: 214 32% 93%;
 		--destructive: 0 84.2% 60.2%;
 		--destructive-foreground: 0 0% 98%;
-		--border: 214 32% 91%;
-		--input: 214 32% 91%;
+		--border: 220 23% 24%;
+		--input: 220 23% 24%;
 		--ring: 217 91% 60%;
 	}
 
@@ -102,8 +102,14 @@
 	}
 
 	body {
-		@apply bg-background text-foreground;
+		@apply bg-background text-foreground antialiased;
 		font-family: var(--font-body), system-ui, sans-serif;
+		background-image:
+			radial-gradient(circle at 12% 18%, hsl(var(--landing-accent-cyan) / 0.18), transparent 22rem),
+			radial-gradient(circle at 88% 14%, hsl(var(--landing-accent-blue) / 0.16), transparent 24rem),
+			radial-gradient(circle at 50% 100%, hsl(var(--landing-accent-indigo) / 0.08), transparent 28rem),
+			linear-gradient(180deg, hsl(var(--landing-bg-start)) 0%, hsl(var(--landing-bg-mid)) 50%, hsl(var(--landing-bg-end)) 100%);
+		background-attachment: fixed;
 	}
 
 	h1, h2, h3, h4, h5, h6 {
@@ -113,6 +119,20 @@
 	html, body {
 		height: 100%;
 		width: 100%;
+	}
+}
+
+@layer components {
+	.app-panel {
+		@apply rounded-[1.75rem] border border-white/10 bg-slate-950/60 shadow-[0_34px_90px_-40px_rgba(8,47,73,0.8)] backdrop-blur-2xl;
+	}
+
+	.app-panel-muted {
+		@apply rounded-[1.5rem] border border-white/10 bg-slate-900/70 shadow-[0_24px_70px_-42px_rgba(15,23,42,0.95)] backdrop-blur-xl;
+	}
+
+	.app-gradient-text {
+		@apply bg-gradient-to-r from-cyan-500 via-blue-500 to-indigo-500 bg-clip-text text-transparent;
 	}
 }
 

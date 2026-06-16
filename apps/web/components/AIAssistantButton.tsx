@@ -1,12 +1,12 @@
 'use client'
 import React, { useState } from 'react'
 import { Button } from './ui/button'
-import { Bot, Loader2 } from 'lucide-react'
+import { Bot, Loader2, Sparkles } from 'lucide-react'
 import { useUser } from '@/app/providers'
 import { useAppDispatch, useAppSelector } from '@/redux/store'
 import { joinChatRoom, setActiveRoomId } from '@/redux/chatSlice'
 import { joinSocketRoom } from '@/redux/socketSlice'
-import { TAIRoomResponse, TRoomData } from '@/lib/types'
+import { TAIRoomResponse } from '@/lib/types'
 import { globals } from '@/globals'
 import { useToast } from './ui/use-toast'
 import { useDeviceId } from '@/lib/hooks/useE2EE'
@@ -17,10 +17,9 @@ export default function AIAssistantButton() {
 	const rooms = useAppSelector(state => state.chat.rooms)
 	const { toast } = useToast()
 	const deviceId = useDeviceId()
-	
+
 	const [isCreating, setIsCreating] = useState(false)
 
-	// Check if AI room already exists
 	const aiRoom = user?.rooms?.find(room => room.is_ai_room === true)
 
 	const createAndOpenAIRoom = async () => {
@@ -33,15 +32,12 @@ export default function AIAssistantButton() {
 			return
 		}
 
-		// If AI room already exists, just open it
 		if (aiRoom) {
-			// Check if room is already in Redux state
 			if (rooms[aiRoom.roomId]) {
 				dispatch(setActiveRoomId(aiRoom.roomId))
 				return
 			}
 
-			// If not in Redux, join it first
 			dispatch(joinSocketRoom(aiRoom.roomId))
 			dispatch(joinChatRoom({
 				roomData: aiRoom,
@@ -52,7 +48,6 @@ export default function AIAssistantButton() {
 			return
 		}
 
-		// Create new AI room
 		setIsCreating(true)
 
 		try {
@@ -66,7 +61,6 @@ export default function AIAssistantButton() {
 			const data: TAIRoomResponse = await response.json()
 
 			if (data.success && data.room) {
-				// Add room to Redux state
 				dispatch(joinSocketRoom(data.roomId!))
 				dispatch(joinChatRoom({
 					roomData: data.room,
@@ -74,11 +68,6 @@ export default function AIAssistantButton() {
 					deviceId
 				}))
 				dispatch(setActiveRoomId(data.roomId!))
-
-				// Update user's rooms list locally
-				const updatedRooms = [...(user.rooms || []), data.room]
-				// You might want to update the user context here as well
-				// updateUser({ rooms: updatedRooms })
 
 				toast({
 					title: "AI Assistant Ready",
@@ -107,7 +96,7 @@ export default function AIAssistantButton() {
 		<Button
 			onClick={createAndOpenAIRoom}
 			disabled={isCreating}
-			className="w-full mb-2 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+			className="mb-2 w-full bg-gradient-to-r from-cyan-500 to-blue-500 text-slate-950 shadow-lg shadow-cyan-500/20 transition-all duration-300 hover:from-cyan-400 hover:to-blue-400 hover:shadow-cyan-500/30"
 			size="lg"
 		>
 			{isCreating ? (
@@ -118,10 +107,16 @@ export default function AIAssistantButton() {
 			) : (
 				<>
 					<Bot className="mr-2 h-4 w-4" />
-					{aiRoom ? 'Chat with AI Assistant' : '✨ New AI Assistant'}
+					{aiRoom ? (
+						'Chat with AI Assistant'
+					) : (
+						<>
+							<Sparkles className="mr-1 h-4 w-4" />
+							New AI Assistant
+						</>
+					)}
 				</>
 			)}
 		</Button>
 	)
 }
-

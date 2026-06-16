@@ -3,7 +3,6 @@ import React, { useEffect, useState } from 'react'
 import { useUser } from '../providers'
 import { useRouter } from 'next/navigation';
 import Sidebar from './Sidebar';
-import { Separator } from "@/components/ui/separator"
 import Room from './Room';
 import Menubar from '@/app/home/MenuBar';
 import { useAppSelector, useAppDispatch } from '@/redux/store';
@@ -29,6 +28,15 @@ export default function Page() {
 
 	const [areRoomsInited, setRoomsInited] = useState(false);
 	const isLoadingScreenVisible = !!user && e2eeInitialized && !areRoomsInited;
+
+	function normalizeIncomingRoom(roomData: TRoomData): TRoomData {
+		return {
+			...roomData,
+			messages: Array.isArray(roomData.messages) ? roomData.messages : [],
+			membersData: Array.isArray(roomData.membersData) ? roomData.membersData : [],
+			saved_messages: Array.isArray(roomData.saved_messages) ? roomData.saved_messages : []
+		};
+	}
 
 	useEffect(() => {
 		if (!isLoading && !user) {
@@ -127,6 +135,27 @@ export default function Page() {
 			})
 		});
 
+		socket.on('group_room_added_server_to_client', (incomingRoom: TRoomData) => {
+			if (!user) return;
+
+			const normalizedRoom = normalizeIncomingRoom(incomingRoom);
+			const roomAlreadyExists = (user.rooms || []).some((room) => room.roomId === normalizedRoom.roomId);
+			if (roomAlreadyExists) {
+				return;
+			}
+
+			dispatch(joinSocketRoom(normalizedRoom.roomId));
+			dispatch(joinChatRoom({
+				roomData: normalizedRoom,
+				userId: user.uid,
+				deviceId
+			}));
+
+			updateUser({
+				rooms: [...(user.rooms || []), normalizedRoom]
+			});
+		});
+
 		socket.on('chat_reaction_server_to_client', (data : TReactionEvent) => {
 			dispatch(updateChatReaction(data))
 		})
@@ -147,6 +176,7 @@ export default function Page() {
 			socket.off("chat_event_server_to_client");
 			socket.off("send_friend_request_server_to_client")
 			socket.off('respond_friend_request_server_to_client');
+			socket.off('group_room_added_server_to_client');
 			socket.off('chat_reaction_server_to_client');
 			socket.off('chat_delete_server_to_client');
 			socket.off('chat_edit_server_to_client');
@@ -157,16 +187,28 @@ export default function Page() {
 	}, [socket, user, updateUser, dispatch, deviceId]);
 
 	return (
-		<div className='h-screen flex flex-row overflow-hidden'>
-			{isLoadingScreenVisible && <LoadingScreen/>}
-			<div style={{ display: activeChatRoomId == '' || !isMobile ? "flex" : "none" }} className="flex flex-row sm:w-1/4 w-full h-full">
-				<Menubar />
-				<Separator orientation='vertical' className='h-full' />
-				<Sidebar />
-				<Separator orientation='vertical' className='h-full' />
+		<div className='relative h-screen overflow-hidden p-3 md:p-4'>
+			<div className='pointer-events-none absolute inset-0 overflow-hidden'>
+				<div className='absolute left-[-8rem] top-[-8rem] h-72 w-72 rounded-full bg-cyan-400/18 blur-[120px]' />
+				<div className='absolute bottom-[-10rem] right-[-6rem] h-80 w-80 rounded-full bg-blue-400/14 blur-[140px]' />
 			</div>
-			{isMobile && activeChatRoomId != '' && <Room/>}
-			{!isMobile && (activeChatRoomId != '' ? <Room /> : <NoActiveRoom />)}
+			{isLoadingScreenVisible && <LoadingScreen/>}
+			<div className='relative flex h-full gap-3'>
+				<div style={{ display: activeChatRoomId == '' || !isMobile ? "flex" : "none" }} className="flex h-full w-full max-w-[430px] min-w-0 flex-row gap-3">
+					<Menubar />
+					<Sidebar />
+				</div>
+				{isMobile && activeChatRoomId != '' && (
+					<div className='app-panel flex-1 overflow-hidden'>
+						<Room/>
+					</div>
+				)}
+				{!isMobile && (
+					<div className='app-panel flex-1 overflow-hidden'>
+						{activeChatRoomId != '' ? <Room /> : <NoActiveRoom />}
+					</div>
+				)}
+			</div>
 		</div>
 	)
 }

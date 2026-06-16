@@ -17,27 +17,25 @@ export default function FriendRequest({ invitedUser } : { invitedUser: TUser }) 
 	const { toast } = useToast();
 	const deviceId = useDeviceId();
 
-
-
 	function respondToRequest(accepted : boolean) {
 		if(!user || !socket) return;
 
-		socket.emit('respond_friend_request_client_to_server', { 
+		socket.emit('respond_friend_request_client_to_server', {
 			uid: user.uid,
 			requestUid: invitedUser.uid,
 			isAccepted: accepted
 		}, (response : any) => {
 			if(response.success) {
-				const receivedReqs = user.received_friend_requests;
-				const reqIdx = receivedReqs.findIndex(user => user.uid == invitedUser.uid);
+				const receivedReqs = [...user.received_friend_requests];
+				const reqIdx = receivedReqs.findIndex(currentUser => currentUser.uid == invitedUser.uid);
 				if(reqIdx != -1) {
 					receivedReqs.splice(reqIdx, 1);
 				}
 
-				const friendList = user.friend_list;
-				const rooms = user.rooms;
+				const friendList = [...user.friend_list];
+				const rooms = [...user.rooms];
 
-				if(accepted) {					
+				if(accepted) {
 					friendList.push(invitedUser);
 
 					const newRoomId : string = genRoomId(invitedUser.uid, user.uid)
@@ -61,11 +59,11 @@ export default function FriendRequest({ invitedUser } : { invitedUser: TUser }) 
 					rooms.push(newRoomData);
 
 					dispatch(joinSocketRoom(newRoomId))
-				dispatch(joinChatRoom({
-					roomData: newRoomData,
-					userId: user.uid,
-					deviceId
-				}))
+					dispatch(joinChatRoom({
+						roomData: newRoomData,
+						userId: user.uid,
+						deviceId
+					}))
 				}
 
 				updateUser({
@@ -73,7 +71,6 @@ export default function FriendRequest({ invitedUser } : { invitedUser: TUser }) 
 					friend_list: friendList,
 					rooms
 				})
-				
 
 				toast({
 					title: "Success",
@@ -88,19 +85,21 @@ export default function FriendRequest({ invitedUser } : { invitedUser: TUser }) 
 		})
 	}
 
-
 	return (
-		<div className='flex flex-row items-center justify-between'>
-			<div className='flex flex-row items-center gap-2'>
-				<Avatar className='rounded-full overflow-hidden'>
+		<div className='app-panel-muted flex flex-row items-center justify-between gap-4 px-4 py-4'>
+			<div className='flex min-w-0 flex-row items-center gap-3'>
+				<Avatar className='overflow-hidden rounded-full border border-white/10'>
 					<AvatarImage referrerPolicy='no-referrer' src={invitedUser.photo_url}/>
-					<AvatarFallback>{invitedUser.name[0]}</AvatarFallback>					
+					<AvatarFallback>{invitedUser.name[0]}</AvatarFallback>
 				</Avatar>
-				<p>{invitedUser.name}</p>
+				<div className='min-w-0'>
+					<p className='truncate text-sm font-medium text-slate-50'>{invitedUser.name}</p>
+					<p className='truncate text-xs text-muted-foreground'>{invitedUser.email}</p>
+				</div>
 			</div>
 			<div className='flex flex-row gap-2'>
 				<Button onClick={() => respondToRequest(true)}>Accept</Button>
-				<Button onClick={() => respondToRequest(false)} variant={'outline'}>Decline</Button>
+				<Button onClick={() => respondToRequest(false)} variant='outline'>Decline</Button>
 			</div>
 		</div>
 	)

@@ -28,7 +28,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useTheme } from "next-themes";
 import { Input } from "@/components/ui/input";
 import Image from "next/image";
 import { saveFileToStorage, sleep, formatLastSeen } from "@/lib/utils";
@@ -48,7 +47,6 @@ import * as crypto from "@/lib/crypto";
 
 export default function Room() {
   const { toast } = useToast();
-  const { theme } = useTheme();
 
   const activeChatRoomId = useAppSelector(
     (state) => state.chat.activeChatRoomId,
@@ -399,9 +397,9 @@ export default function Room() {
   }
 
   return (
-    <div className="w-full h-full flex flex-col overflow-hidden">
+    <div className="flex h-full w-full flex-col overflow-hidden">
       {/* Header */}
-      <div className="bg-card w-full px-2 py-3 flex flex-row items-center justify-start gap-4 flex-shrink-0 border-b">
+      <div className="flex w-full flex-shrink-0 flex-row items-center justify-start gap-4 border-b border-white/10 bg-slate-950/68 px-4 py-4 backdrop-blur-xl">
         <Button
           onClick={handleBackButton}
           variant={"ghost"}
@@ -409,16 +407,16 @@ export default function Room() {
         >
           <ArrowLeft />
         </Button>
-        <Avatar>
+        <Avatar className="rounded-full border border-white/10">
           <AvatarImage
             src={activeRoom.photo_url}
             className="h-10 w-10 rounded-full"
           />
         </Avatar>
         <div className="flex flex-col">
-          <p>{activeRoom.name}</p>
+          <p className="font-medium text-slate-50">{activeRoom.name}</p>
           {presenceText && (
-            <span className="text-xs opacity-60">{presenceText}</span>
+            <span className="text-xs text-muted-foreground">{presenceText}</span>
           )}
         </div>
         {activeRoom.is_ai_room != true && (
@@ -452,7 +450,7 @@ export default function Room() {
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-3"
+        className="flex-1 overflow-y-auto bg-gradient-to-b from-cyan-500/5 via-transparent to-blue-500/5 px-4 py-4"
       >
         {activeRoom?.messages?.map((message, index) => (
           <ChatBubble
@@ -466,14 +464,14 @@ export default function Room() {
       </div>
 
       {/* Input Section - Fixed at bottom */}
-      <div className="flex-shrink-0 border-t bg-card">
+      <div className="flex-shrink-0 border-t border-white/10 bg-slate-950/72 backdrop-blur-xl">
         {/* Preview Images */}
         {previewImages.length > 0 && (
-          <div className="px-4 pt-2 flex flex-row gap-4 overflow-x-auto">
+          <div className="flex flex-row gap-4 overflow-x-auto px-4 pt-3">
             {previewImages.map((data, index) => (
               <div key={index} className="group relative flex-shrink-0">
                 <Image
-                  className="rounded-md"
+                  className="rounded-xl border border-white/10"
                   width={64}
                   height={64}
                   alt="Image"
@@ -481,9 +479,9 @@ export default function Room() {
                 />
                 <div
                   onClick={() => removePreviewImage(index)}
-                  className="hidden group-hover:flex absolute top-0 right-0 cursor-pointer"
+                  className="absolute right-1 top-1 hidden cursor-pointer rounded-full bg-slate-950/55 px-1.5 py-0.5 text-xs text-white group-hover:flex"
                 >
-                  X
+                  Remove
                 </div>
               </div>
             ))}
@@ -527,7 +525,7 @@ export default function Room() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             placeholder="Type your message here"
-            className="min-h-[60px] max-h-[120px]"
+            className="min-h-[60px] max-h-[120px] rounded-2xl border-white/10 bg-slate-900/80 shadow-sm backdrop-blur-sm"
           />
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-wrap gap-2">
@@ -540,13 +538,7 @@ export default function Room() {
                 <PopoverContent className="bg-transparent border-0">
                   <EmojiPicker
                     onEmojiClick={(e) => onEmojiClick(e)}
-                    theme={
-                      theme == undefined
-                        ? Theme.AUTO
-                        : theme == "system"
-                          ? Theme.AUTO
-                          : (theme as Theme)
-                    }
+                    theme={Theme.DARK}
                   />
                 </PopoverContent>
               </Popover>
