@@ -1,6 +1,8 @@
 node_modules/
 .pnpm-store/
 .turbo/
+.vscode/
+.metals/
 .env
 .env.*
 !.env.example

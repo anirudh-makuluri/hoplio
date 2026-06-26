@@ -124,7 +124,6 @@ export default function AuthPage() {
 				method: 'POST',
 				body: { idToken },
 			});
-			await auth.signOut();
 			await login();
 		} catch (error) {
 			console.warn('Session creation failed:', error);

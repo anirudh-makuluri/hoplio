@@ -51,7 +51,8 @@ export default function Page() {
 			email: user.email,
 			name: user.name,
 			photo_url: user.photo_url,
-			uid: user.uid
+			uid: user.uid,
+			deviceId
 		}));
 
 		user.rooms.forEach((roomData) => {

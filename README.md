@@ -120,9 +120,25 @@ Useful package-level commands:
 ```bash
 pnpm --filter @hoplio/backend start
 pnpm --filter @hoplio/backend test
+pnpm --filter @hoplio/backend test:notifications -- --recipient-user-id <firebase-uid>
 pnpm --filter @hoplio/web dev
 pnpm --filter @hoplio/mobile start
 ```
+
+### Smoke Test The Notification Service Without A Phone
+
+If you only want to verify the backend can call the notification service and the notification service can read and write Firestore, you can run a local smoke test without a mobile device.
+
+1. Start the Spring notification service in `apps/notification-service` with the same Firebase Admin credentials and `NOTIFICATION_INTERNAL_TOKEN`.
+2. Set those values in `apps/notification-service/.env` or provide them as real environment variables for the Spring process.
+3. Set `NOTIFICATION_SERVICE_URL` and `NOTIFICATION_INTERNAL_TOKEN` in `apps/backend/.env`.
+4. Run:
+
+```bash
+pnpm --filter @hoplio/backend test:notifications -- --recipient-user-id <firebase-uid>
+```
+
+The script seeds `auth_users/{uid}/devices/{deviceId}`, sends the same internal dispatch request your Node backend uses, and verifies that a `notification_deliveries` document is written in Firestore. A fake FCM token is acceptable for this test: delivery may be marked `FAILED`, which still proves the integration path is working.
 
 ## Quality Checks
 

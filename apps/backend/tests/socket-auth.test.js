@@ -232,7 +232,7 @@ function createHarness() {
 		}
 	});
 
-	attachSocketServer(io, {
+	const socketServer = attachSocketServer(io, {
 		config: {
 			firebase: {
 				db: createFakeDb(state),
@@ -273,7 +273,7 @@ function createHarness() {
 		}
 	});
 
-	return { state, calls, roomInstances, httpServer, io };
+	return { state, calls, roomInstances, httpServer, io, realtimeService: socketServer.realtimeService };
 }
 
 async function startHarness() {
@@ -294,9 +294,10 @@ async function stopHarness(harness) {
 	await once(harness.httpServer, 'close');
 }
 
-function connectClient(harness, sessionCookie) {
+function connectClient(harness, sessionCookie, options = {}) {
 	return createClient(harness.baseUrl, {
 		transports: ['websocket'],
+		auth: options.auth || undefined,
 		extraHeaders: {
 			Cookie: `session=${sessionCookie}`
 		}
@@ -372,6 +373,26 @@ test('socket connections restore durable room membership before client rejoin ev
 		const [message] = await messagePromise;
 		assert.equal(message.roomId, 'room-1');
 		assert.equal(message.id, 'restored-room-message');
+
+		client.close();
+	} finally {
+		await stopHarness(harness);
+	}
+});
+
+test('socket handshake stores device ids from auth payloads when provided', async () => {
+	const harness = await startHarness();
+	try {
+		const client = connectClient(harness, 'session-user-1', {
+			auth: {
+				deviceId: 'android-device-1'
+			}
+		});
+		await once(client, 'connect');
+
+		const sessions = await harness.realtimeService.getUserSessions('user-1');
+		assert.equal(sessions.length, 1);
+		assert.equal(sessions[0].deviceId, 'android-device-1');
 
 		client.close();
 	} finally {

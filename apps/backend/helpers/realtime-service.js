@@ -44,6 +44,9 @@ function normalizeSession(session) {
 		name: typeof session.name === 'string' ? session.name : '',
 		photo_url: typeof session.photo_url === 'string' ? session.photo_url : '',
 		uid: String(session.uid),
+		deviceId: typeof session.deviceId === 'string' && session.deviceId.trim()
+			? session.deviceId.trim()
+			: null,
 		roomIds: uniqStrings(session.roomIds),
 		friendUids: uniqStrings(session.friendUids)
 	};

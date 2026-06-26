@@ -6,6 +6,10 @@ import { ChatMessage, TAuthUser, TUser, TScheduledMessage, TScheduleMessageReque
 import { globals } from "@/globals";
 import { addScheduledMessage, setScheduledMessages, updateScheduledMessage as updateScheduledMessageState, removeScheduledMessage } from "./scheduledMessagesSlice";
 
+type SocketUser = TUser & {
+	deviceId?: string | null;
+};
+
 interface SocketState {
 	socket: Socket | null
 }
@@ -18,25 +22,18 @@ const socketSlice = createSlice({
 	name: 'socket',
 	initialState,
 	reducers: {
-		initSocket: (state, action : PayloadAction<TUser>) => {
+		initSocket: (state, action : PayloadAction<SocketUser>) => {
 			if (state.socket == null) {
 
 				console.log("initing socket");
 				const backendUrl = globals.BACKEND_URL;
 				const socket = io(backendUrl, {
 					transports: ['websocket'],
-					// upgrade: false,
-					// autoConnect: false,
-					query: {
-						...action.payload
+					auth: {
+						deviceId: action.payload.deviceId || undefined
 					},
 					closeOnBeforeunload: false
 				})
-
-				socket.auth = {
-					uid: action.payload.uid,
-					name: action.payload.name
-				}
 				
 				return { ...state, socket };
 			}
@@ -53,7 +50,7 @@ const socketSlice = createSlice({
 export const { initSocket, joinSocketRoom } = socketSlice.actions;
 export const socketReducer = socketSlice.reducer
 
-export const initAndJoinSocketRooms = (rooms: string[], user: TUser): AppThunk => dispatch => {
+export const initAndJoinSocketRooms = (rooms: string[], user: SocketUser): AppThunk => dispatch => {
 	dispatch(initSocket(user));
 	rooms.forEach(roomId => {
 		dispatch(joinSocketRoom(roomId));

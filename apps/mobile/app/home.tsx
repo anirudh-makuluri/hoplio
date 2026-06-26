@@ -15,6 +15,7 @@ import {
 	toggleReaction,
 	updateUserPresence,
 	setOfflineMode,
+	setActiveRoomId,
 } from '~/redux/chatSlice';
 import { useDispatch } from 'react-redux';
 import { ChatMessage, TUser, TRoomData } from '~/lib/types';
@@ -30,9 +31,15 @@ import { useToast } from '~/components/Toast';
 import GlassSurface from '~/components/GlassSurface';
 import {
 	useE2EEInitialization,
+	useDeviceId,
 	useEnsureE2EEKeys,
 	useE2EESyncingKeys,
 } from '~/lib/hooks/useE2EE';
+import {
+	consumePendingNotificationRoomId,
+	initializeNotificationResponseTracking,
+	registerAndroidPushDevice,
+} from '~/lib/pushNotifications';
 
 // Note: HamburgerMenu component has been replaced with BottomNavBar
 
@@ -45,15 +52,23 @@ export default function Page() {
 	const socket = useAppSelector((state) => state.socket.socket);
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
 	const unreadCounts = useAppSelector((state) => state.chat.unreadCounts);
+	const deviceName = useAppSelector((state) => state.e2ee.deviceState?.deviceName);
 	const dispatch = useAppDispatch();
 	const reduxDispatch = useDispatch();
 	const e2eeInitialized = useE2EEInitialization();
+	const deviceId = useDeviceId();
 	const ensureE2EEKeys = useEnsureE2EEKeys();
 	const isSyncingE2EEKeys = useE2EESyncingKeys();
 	const [currentTab, setCurrentTab] = useState<TabType>('chats');
 	const [showGroupModal, setShowGroupModal] = useState(false);
 	const [roomsBootstrapped, setRoomsBootstrapped] = useState(false);
 	const totalUnreadCount = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+
+	useEffect(() => {
+		initializeNotificationResponseTracking().catch((error) => {
+			console.error('Failed to initialize notification response tracking:', error);
+		});
+	}, []);
 
 	const renderCurrentView = () => {
 		switch (currentTab) {
@@ -103,6 +118,7 @@ export default function Page() {
 							name: user.name,
 							photo_url: user.photo_url,
 							uid: user.uid,
+							deviceId,
 						})
 					);
 
@@ -133,13 +149,49 @@ export default function Page() {
 		return () => {
 			cancelled = true;
 		};
-	}, [user, isLoading, isOffline, e2eeInitialized, ensureE2EEKeys, roomsBootstrapped, dispatch, router]);
+	}, [user, isLoading, isOffline, e2eeInitialized, ensureE2EEKeys, roomsBootstrapped, dispatch, router, deviceId]);
 
 	useEffect(() => {
 		if (!user) {
 			setRoomsBootstrapped(false);
 		}
 	}, [user]);
+
+	useEffect(() => {
+		if (!user || !deviceId || isOffline) {
+			return;
+		}
+
+		registerAndroidPushDevice({
+			deviceId,
+			deviceName,
+		}).catch((error) => {
+			console.error('Failed to register Android push device:', error);
+		});
+	}, [user, deviceId, deviceName, isOffline]);
+
+	useEffect(() => {
+		if (!roomsBootstrapped) {
+			return;
+		}
+
+		let cancelled = false;
+		const openPendingRoom = async () => {
+			const pendingRoomId = await consumePendingNotificationRoomId();
+			if (!pendingRoomId || cancelled) {
+				return;
+			}
+
+			dispatch(setActiveRoomId(pendingRoomId));
+			router.push('/room');
+		};
+
+		void openPendingRoom();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [dispatch, roomsBootstrapped]);
 
 	useEffect(() => {
 		if (!socket) return;

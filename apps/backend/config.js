@@ -65,6 +65,11 @@ const config = {
 		prefix: process.env.REDIS_KEY_PREFIX || `hoplio:${appEnv}`,
 		sessionTtlSeconds: parseIntegerEnv('REDIS_SESSION_TTL_SECONDS', 60 * 60 * 6),
 		enableSocketIoRedisAdapter: process.env.ENABLE_SOCKET_IO_REDIS_ADAPTER === 'true'
+	},
+	notificationService: {
+		baseUrl: process.env.NOTIFICATION_SERVICE_URL || '',
+		internalToken: process.env.NOTIFICATION_INTERNAL_TOKEN || '',
+		timeoutMs: parseIntegerEnv('NOTIFICATION_SERVICE_TIMEOUT_MS', 2000)
 	}
 };
 

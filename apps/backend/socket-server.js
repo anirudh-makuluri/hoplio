@@ -10,11 +10,16 @@ function attachSocketServer(io, dependencies = {}) {
 	const zepHelper = dependencies.zepHelper || require('./helpers/zep-helper');
 	const RoomClass = dependencies.Room || require('./Room');
 	const { createRealtimeService } = dependencies.realtimeFactory || require('./helpers/realtime-service');
+	const { createNotificationDispatcher } = dependencies.notificationDispatcherFactory || require('./helpers/notification-dispatcher');
 	const db = dependencies.db || config.firebase.db;
 	const admin = dependencies.admin || config.firebase.admin;
 	const realtimeService = dependencies.realtimeService || createRealtimeService(io, {
 		logger,
 		redisConfig: config.redis
+	});
+	const notificationDispatcher = dependencies.notificationDispatcher || createNotificationDispatcher({
+		logger,
+		serviceConfig: config.notificationService
 	});
 
 	function getRoomThreadId(roomId, roomData, userUid) {
@@ -63,6 +68,93 @@ function attachSocketServer(io, dependencies = {}) {
 		}
 
 		return normalized;
+	}
+
+	function validateOptionalDeviceId(value) {
+		if (typeof value !== 'string') {
+			return null;
+		}
+
+		const trimmed = value.trim();
+		if (!trimmed) {
+			return null;
+		}
+
+		return utils.isValidEntityId(trimmed)
+			? trimmed
+			: null;
+	}
+
+	function buildNotificationPreview(serverMessage) {
+		if (serverMessage.isEncrypted === true) {
+			return 'Sent an encrypted message';
+		}
+
+		if (serverMessage.type !== 'text') {
+			return 'Sent an attachment';
+		}
+
+		if (typeof serverMessage.chatInfo !== 'string') {
+			return 'New message';
+		}
+
+		const normalized = serverMessage.chatInfo.replace(/\s+/g, ' ').trim();
+		if (!normalized) {
+			return 'New message';
+		}
+
+		return normalized.slice(0, 160);
+	}
+
+	async function buildDeliveredViaWsMap(roomId, recipientUserIds) {
+		const deliveredViaWsEntries = await Promise.all(recipientUserIds.map(async (recipientUserId) => {
+			const sessions = await realtimeService.getUserSessions(recipientUserId);
+			const deliveredDeviceIds = [...new Set(
+				sessions
+					.filter((session) => session?.deviceId && Array.isArray(session.roomIds) && session.roomIds.includes(roomId))
+					.map((session) => session.deviceId)
+			)];
+
+			return [recipientUserId, deliveredDeviceIds];
+		}));
+
+		return Object.fromEntries(deliveredViaWsEntries);
+	}
+
+	async function dispatchNotificationForChat(roomId, roomData, serverMessage) {
+		if (!notificationDispatcher?.isEnabled?.()) {
+			return;
+		}
+
+		if (serverMessage.userUid === 'ai-assistant' || roomId.startsWith('ai-assistant-')) {
+			return;
+		}
+
+		const recipientUserIds = (roomData?.members || []).filter((memberUid) => (
+			memberUid &&
+			memberUid !== serverMessage.userUid &&
+			memberUid !== 'ai-assistant'
+		));
+
+		if (recipientUserIds.length === 0) {
+			return;
+		}
+
+		const deliveredViaWs = await buildDeliveredViaWsMap(roomId, recipientUserIds);
+
+		await notificationDispatcher.dispatchChatMessage({
+			messageId: serverMessage.id,
+			roomId,
+			senderUserId: serverMessage.userUid,
+			senderName: serverMessage.userName,
+			isGroup: roomData?.is_group === true,
+			roomName: roomData?.name || '',
+			type: serverMessage.type,
+			plaintextPreview: buildNotificationPreview(serverMessage),
+			isEncrypted: serverMessage.isEncrypted === true,
+			recipientUserIds,
+			deliveredViaWs
+		});
 	}
 
 	async function getRoomDetails(roomId) {
@@ -144,6 +236,7 @@ function attachSocketServer(io, dependencies = {}) {
 
 	io.use(async (socket, next) => {
 		const sessionCookie = parseCookieString(socket.handshake.headers.cookie).session || '';
+		const deviceId = validateOptionalDeviceId(socket.handshake.auth?.deviceId);
 
 		const decodedClaims = await authHelper.verifySessionCookie(sessionCookie, false)
 			.then((claims) => claims)
@@ -180,6 +273,7 @@ function attachSocketServer(io, dependencies = {}) {
 				name: userData.name || decodedClaims.name || socket.email,
 				photo_url: userData.photo_url || '',
 				uid: socket.uid,
+				deviceId,
 				roomIds: restoredRoomIds,
 				friendUids: userData.friend_list || []
 			});
@@ -294,6 +388,9 @@ function attachSocketServer(io, dependencies = {}) {
 				};
 
 				await room.newChatEvent(serverMessage);
+				void dispatchNotificationForChat(roomId, roomData, serverMessage).catch((error) => {
+					logger.error('Failed to dispatch chat notification:', error);
+				});
 
 				if (roomId.startsWith('ai-assistant-') && socket.uid !== 'ai-assistant') {
 					try {

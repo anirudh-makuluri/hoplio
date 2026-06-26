@@ -9,6 +9,7 @@ import { offlineStorage } from '../lib/offlineStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
 import { ToastProvider } from '../components/Toast';
+import { auth } from '../lib/firebase';
 
 
 type TUserContext = {
@@ -158,6 +159,23 @@ export function Providers({ children }: { children: ReactNode }) {
 		} catch (error) {
 			console.error('Online logout failed:', error);
 			// Continue with local logout even if backend call fails
+		}
+
+		try {
+			const deviceManager = await import('../lib/device-manager');
+			const pushNotifications = await import('../lib/pushNotifications');
+			const deviceId = deviceManager.getDeviceId();
+			if (deviceId) {
+				await pushNotifications.unregisterAndroidPushDevice(deviceId);
+			}
+		} catch (error) {
+			console.error('Failed to unregister push notifications during logout:', error);
+		}
+
+		try {
+			await auth.signOut();
+		} catch (error) {
+			console.error('Failed to sign out Firebase auth session:', error);
 		}
 		
 		try {
