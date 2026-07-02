@@ -17,6 +17,82 @@ async function ensureUsersExist(userIds) {
 	}
 }
 
+async function getLatestRoomMessages(roomId, roomData) {
+	let messages = [];
+	const chatDocIds = roomData.chat_doc_ids || [];
+	if (chatDocIds.length > 0) {
+		const latestChatDocId = chatDocIds[chatDocIds.length - 1];
+		const chatHistorySnap = await config.firebase.db
+			.collection('rooms')
+			.doc(roomId)
+			.collection('chat_history')
+			.doc(latestChatDocId)
+			.get();
+		if (chatHistorySnap.exists) {
+			messages = chatHistorySnap.data().chat_history;
+		}
+	}
+
+	return messages;
+}
+
+async function buildRoomDataForUser(context, uid, roomId) {
+	const roomSnap = await config.firebase.db.collection('rooms').doc(roomId).get();
+	if (!roomSnap.exists) {
+		throw "Room not found";
+	}
+
+	const roomData = roomSnap.data();
+	const messages = await getLatestRoomMessages(roomId, roomData);
+
+	if (roomData.is_ai_room) {
+		const memberPublicKeys = await context.getIdentityKeysForUsers([uid]);
+		return {
+			id: roomId,
+			...roomData,
+			messages,
+			memberPublicKeys,
+			membersData: [
+				{
+					uid: 'ai-assistant',
+					name: 'Hoplio AI',
+					photo_url: 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff',
+					email: 'ai-assistant@hoplio.com'
+				}
+			]
+		};
+	}
+
+	const membersDataPromises = (roomData.members || []).map((memberUid) => context.getUserData(memberUid));
+	const membersData = await Promise.all(membersDataPromises);
+	const memberPublicKeys = roomData.is_group
+		? await context.getRoomKeysForMembers(roomId, roomData.members || [])
+		: await context.getIdentityKeysForUsers(roomData.members || []);
+
+	if (roomData.is_group === false) {
+		const otherUserUid = roomData.members[0] == uid ? roomData.members[1] : roomData.members[0];
+		const otherUserData = membersData.find((member) => member.uid == otherUserUid);
+
+		return {
+			id: roomId,
+			...roomData,
+			messages,
+			photo_url: otherUserData?.photo_url,
+			name: otherUserData?.name,
+			memberPublicKeys,
+			membersData
+		};
+	}
+
+	return {
+		id: roomId,
+		...roomData,
+		messages,
+		memberPublicKeys,
+		membersData
+	};
+}
+
 module.exports = {
 	getIdentityKeysForUsers: async function(userIds) {
 		const keys = {};
@@ -141,75 +217,22 @@ module.exports = {
 		const joinedRoomIds = userData.joined_rooms || [];
 		const rooms = await joinedRoomIds.reduce(async (accumulatorPromise, roomId) => {
 			const accumulator = await accumulatorPromise;
-
 			const roomSnap = await config.firebase.db.collection('rooms').doc(roomId).get();
-			
 			if(!roomSnap.exists) return accumulator;
 
-			const roomData = roomSnap.data();
-			let messages = [];
-			const chatDocIds = roomData.chat_doc_ids || [];
-			if(chatDocIds.length > 0) {
-				const latestChatDocId = chatDocIds[chatDocIds.length - 1];
-				const chatHistorySnap = await config.firebase.db.collection('rooms').doc(roomId).collection('chat_history').doc(latestChatDocId).get();
-				if(chatHistorySnap.exists) {
-					messages = chatHistorySnap.data().chat_history;
-				}
-			}
-
-			if(roomData.is_ai_room) {
-				const memberPublicKeys = await this.getIdentityKeysForUsers([uid]);
+			const room = await buildRoomDataForUser(this, uid, roomId);
+			if (!room.is_group) {
+				const otherUserUid = room.members[0] == uid ? room.members[1] : room.members[0];
+				const reqData = frndListData.find(frnd => frnd.uid == otherUserUid);
 				accumulator.push({
-					id: roomId,
-					...roomData,
-					messages: messages,
-					memberPublicKeys,
-					membersData: [
-						{
-							uid: 'ai-assistant',
-							name: 'Hoplio AI',
-							photo_url: 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff',
-							email: 'ai-assistant@hoplio.com'
-						}
-					]
-				})
-
+					...room,
+					photo_url: reqData?.photo_url || room.photo_url,
+					name: reqData?.name || room.name,
+				});
 				return accumulator;
 			}
 
-
-			const membersDataPromises = roomData.members.map(uid => this.getUserData(uid));
-
-			const membersData = await Promise.all(membersDataPromises);
-
-			const memberPublicKeys = roomData.is_group
-				? await this.getRoomKeysForMembers(roomId, roomData.members)
-				: await this.getIdentityKeysForUsers(roomData.members);
-
-			if(roomData.is_group == false) {
-				const otherUserUid = roomData.members[0] == uid ? roomData.members[1] : roomData.members[0];
-
-				const reqData = frndListData.find(frnd => frnd.uid == otherUserUid);
-
-				accumulator.push({
-					id: roomId, 
-					...roomData, 
-					messages: messages,
-					photo_url: reqData?.photo_url,
-					name: reqData?.name,
-					memberPublicKeys,
-					membersData
-				})
-			} else {
-				accumulator.push({
-					id: roomId,
-					...roomData,
-					messages: messages,
-					memberPublicKeys,
-					membersData
-				})
-			}
-
+			accumulator.push(room);
 			return accumulator;
 		}, Promise.resolve([]));
 
@@ -446,6 +469,10 @@ module.exports = {
 		}
 	}
 	,
+
+	getRoomDataForUser: async function (uid, roomId) {
+		return buildRoomDataForUser(this, uid, roomId);
+	},
 
 	// GROUPS
 	createGroup: async function (creatorUid, { name, photoUrl, memberUids }) {

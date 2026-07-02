@@ -10,7 +10,7 @@ import {
 	Search, Clock, Radio, Wifi, Check,
 	ChevronDown, Menu, X
 } from "lucide-react";
-import { useEffect, useRef, useState, useCallback, type RefObject } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 
 firebase.initializeApp(config.firebaseConfig)
 const provider = new firebase.auth.GoogleAuthProvider();
@@ -30,7 +30,7 @@ const MESH_EDGES: [number, number][] = [
 
 const GATEWAY_NODE = 6;
 
-function useInView(threshold = 0.15): { ref: RefObject<HTMLDivElement | null>; inView: boolean } {
+function useInView(threshold = 0.15) {
 	const ref = useRef<HTMLDivElement | null>(null);
 	const [inView, setInView] = useState(false);
 
@@ -45,7 +45,7 @@ function useInView(threshold = 0.15): { ref: RefObject<HTMLDivElement | null>; i
 		return () => obs.disconnect();
 	}, [threshold]);
 
-	return { ref, inView };
+	return [ref, inView] as const;
 }
 
 function MeshNetwork({ className }: { className?: string }) {
@@ -164,10 +164,10 @@ export default function Home() {
 	const [scrolled, setScrolled] = useState(false);
 	const [mobileMenu, setMobileMenu] = useState(false);
 
-	const hero = useInView(0.1);
-	const vision = useInView();
-	const features = useInView();
-	const roadmap = useInView();
+	const [heroRef, heroInView] = useInView(0.1);
+	const [visionRef, visionInView] = useInView();
+	const [featuresRef, featuresInView] = useInView();
+	const [roadmapRef, roadmapInView] = useInView();
 
 	useEffect(() => {
 		const onScroll = () => setScrolled(window.scrollY > 20);
@@ -232,14 +232,14 @@ export default function Home() {
 			</nav>
 
 			{/* ── Hero ── */}
-			<section ref={hero.ref} className="relative min-h-screen flex items-center justify-center pt-16">
+			<section ref={heroRef} className="relative min-h-screen flex items-center justify-center pt-16">
 				<div className="absolute inset-0">
 					<MeshNetwork className="absolute inset-0 w-full h-full opacity-40 dark:opacity-20" />
 					<div className="absolute inset-0 bg-gradient-to-b from-background via-background/80 to-background" />
 					<div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[min(600px,90vw)] aspect-square bg-cyan-500/8 rounded-full blur-[120px]" />
 				</div>
 
-				<div className={`relative z-10 max-w-4xl mx-auto px-6 text-center transition-all duration-1000 ${hero.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
+				<div className={`relative z-10 max-w-4xl mx-auto px-6 text-center transition-all duration-1000 ${heroInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-8"
 					}`}>
 					<div className="inline-flex items-center gap-2 px-4 py-1.5 mb-8 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-600 dark:text-cyan-400 text-sm font-medium">
 						<Radio className="w-3.5 h-3.5" />
@@ -276,8 +276,8 @@ export default function Home() {
 			</section>
 
 			{/* ── Vision: How Mesh Works ── */}
-			<section id="vision" ref={vision.ref} className="relative py-24 md:py-32 px-6">
-				<div className={`max-w-6xl mx-auto transition-all duration-1000 delay-100 ${vision.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+			<section id="vision" ref={visionRef} className="relative py-24 md:py-32 px-6">
+				<div className={`max-w-6xl mx-auto transition-all duration-1000 delay-100 ${visionInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
 					}`}>
 					<div className="text-center mb-16 md:mb-20">
 						<p className="text-sm font-medium text-cyan-500 dark:text-cyan-400 uppercase tracking-widest mb-4">
@@ -336,8 +336,8 @@ export default function Home() {
 			</section>
 
 			{/* ── Features: What's Built Today ── */}
-			<section id="features" ref={features.ref} className="relative py-24 md:py-32 px-6 bg-muted/30">
-				<div className={`max-w-6xl mx-auto transition-all duration-1000 delay-100 ${features.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+			<section id="features" ref={featuresRef} className="relative py-24 md:py-32 px-6 bg-muted/30">
+				<div className={`max-w-6xl mx-auto transition-all duration-1000 delay-100 ${featuresInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
 					}`}>
 					<div className="text-center mb-16 md:mb-20">
 						<p className="text-sm font-medium text-cyan-500 dark:text-cyan-400 uppercase tracking-widest mb-4">
@@ -368,8 +368,8 @@ export default function Home() {
 			</section>
 
 			{/* ── Roadmap ── */}
-			<section id="roadmap" ref={roadmap.ref} className="relative py-24 md:py-32 px-6">
-				<div className={`max-w-3xl mx-auto transition-all duration-1000 delay-100 ${roadmap.inView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
+			<section id="roadmap" ref={roadmapRef} className="relative py-24 md:py-32 px-6">
+				<div className={`max-w-3xl mx-auto transition-all duration-1000 delay-100 ${roadmapInView ? "opacity-100 translate-y-0" : "opacity-0 translate-y-12"
 					}`}>
 					<div className="text-center mb-16">
 						<p className="text-sm font-medium text-cyan-500 dark:text-cyan-400 uppercase tracking-widest mb-4">

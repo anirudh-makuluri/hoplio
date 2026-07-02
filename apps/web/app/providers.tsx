@@ -1,5 +1,5 @@
 'use client'
-import { ReactNode, createContext, useCallback, useContext, useEffect, useState } from 'react'
+import { ReactNode, createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { ThemeProvider } from "@/components/theme-provider"
 import { customFetch } from '@/lib/utils';
 import { TAuthUser } from '@/lib/types';
@@ -28,6 +28,17 @@ export function Providers({ children }: { children: ReactNode }) {
 	const [user, setUser] = useState<TAuthUser | null>(null);
 	const [isLoading, setLoading] = useState<boolean>(true);
 	const router = useRouter();
+
+	const roomIdsSignature = useMemo(() => {
+		if (!user?.rooms) return '';
+		return user.rooms
+			.filter((room) => !room.roomId.startsWith('ai-assistant-'))
+			.map((room) => room.roomId)
+			.sort()
+			.join('|');
+	}, [user]);
+
+	const userId = user?.uid || '';
 
 	const ensureE2EEKeys = useCallback(async (normalizedUser: TAuthUser) => {
 		try {
@@ -58,11 +69,7 @@ export function Providers({ children }: { children: ReactNode }) {
 				}
 			}
 
-			if (keyExists) {
-				return;
-			}
-
-			const groupIds = Array.from(
+			const roomIds = Array.from(
 				new Set(
 					(normalizedUser.rooms || [])
 						.filter((room) => !room.roomId.startsWith('ai-assistant-'))
@@ -70,9 +77,11 @@ export function Providers({ children }: { children: ReactNode }) {
 				)
 			);
 
-			console.log(groupIds)
-
-			await e2eeService.setupDeviceKeys(userId, groupIds);
+			// setupDeviceKeys is idempotent on the backend, so we reuse it to
+			// register any missing room keys even when the identity key already exists.
+			if (!keyExists || roomIds.length > 0) {
+				await e2eeService.setupDeviceKeys(userId, roomIds);
+			}
 		} catch (error) {
 			console.error('E2EE key setup on login failed:', error);
 		}
@@ -111,7 +120,6 @@ export function Providers({ children }: { children: ReactNode }) {
 						}))
 					}
 					setUser(normalizedUser)
-					void ensureE2EEKeys(normalizedUser);
 				}
 			})
 			.catch(error => {
@@ -119,13 +127,18 @@ export function Providers({ children }: { children: ReactNode }) {
 			}).finally(() => {
 				setLoading(false);
 			})
-	}, [ensureE2EEKeys]);
+	}, []);
 
 	useEffect(() => {
 		if (!user) {
 			login();
 		}
 	}, [user, login]);
+
+	useEffect(() => {
+		if (!userId || !user) return;
+		void ensureE2EEKeys(user);
+	}, [ensureE2EEKeys, roomIdsSignature, user, userId]);
 
 	function updateUser(newData: Partial<TAuthUser>) {
 		if(!user) return;
@@ -159,8 +172,9 @@ export function Providers({ children }: { children: ReactNode }) {
 			<ReduxProvider>
 				<ThemeProvider
 					attribute="class"
-					defaultTheme="system"
-					enableSystem
+					defaultTheme="dark"
+					forcedTheme="dark"
+					enableSystem={false}
 					disableTransitionOnChange
 				>
 					<TooltipProvider delayDuration={100}>

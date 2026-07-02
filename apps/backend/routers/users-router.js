@@ -6,9 +6,26 @@ const logger = require('../logger');
 const utils = require('../utils');
 const authHelper = require('../helpers/auth-helper');
 
-const router = new Router();
+function createUsersRouter(dependencies = {}) {
+	const router = new Router();
+	const realtimeService = dependencies.realtimeService || null;
 
 router.use('/users', authHelper.requireSession);
+
+async function emitGroupRoomAdded(memberUid, roomId) {
+	if (!realtimeService || !memberUid || !roomId) return;
+
+	try {
+		const room = await dbHelper.getRoomDataForUser(memberUid, roomId);
+		await realtimeService.emitRoomEvent(
+			realtimeService.getUserRoomName(memberUid),
+			'group_room_added_server_to_client',
+			room
+		);
+	} catch (error) {
+		logger.error('Emit group room added error:', error);
+	}
+}
 
 function ensureActorMatchesParamUser(req, res) {
 	if (req.uid !== req.params.uid) {
@@ -222,6 +239,14 @@ router.post('/users/:uid/groups', async (req, res) => {
 		
 		logger.debug('Creating group:', { creatorUid, name, memberUidsCount: memberUids?.length });
 		const response = await dbHelper.createGroup(creatorUid, { name, photoUrl, memberUids });
+		if (response?.success && response?.roomId) {
+			const uniqueMembers = Array.from(new Set(memberUids || []));
+			await Promise.all(
+				uniqueMembers
+					.filter((memberUid) => memberUid && memberUid !== creatorUid)
+					.map((memberUid) => emitGroupRoomAdded(memberUid, response.roomId))
+			);
+		}
 		res.json(response);
 	} catch (error) {
 		logger.error('Create group error:', error);
@@ -240,6 +265,9 @@ router.post('/users/:uid/groups/:roomId/members', async (req, res) => {
 		if (!ensureValidEntityId(res, roomId, 'roomId')) return;
 		const { memberUids } = req.body || {};
 		const response = await dbHelper.addGroupMembers(roomId, actorUid, memberUids || []);
+		if (response?.success && Array.isArray(response?.added) && response.added.length > 0) {
+			await Promise.all(response.added.map((memberUid) => emitGroupRoomAdded(memberUid, roomId)));
+		}
 		res.json(response);
 	} catch (error) {
 		logger.error('Add group members error:', error);
@@ -348,4 +376,8 @@ router.patch('/users/:uid/rooms/:roomId/ai', async (req, res) => {
 	}
 });
 
-module.exports = router
+	return router;
+}
+
+module.exports = createUsersRouter();
+module.exports.createUsersRouter = createUsersRouter;

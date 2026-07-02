@@ -9,7 +9,7 @@ const fileUpload = require('express-fileupload');
 const logger = require('./logger');
 const config = require('./config');
 const sessionRouter = require('./routers/session-router');
-const usersRouter = require('./routers/users-router');
+const usersRouterModule = require('./routers/users-router');
 const scheduledMessagesRouter = require('./routers/scheduled-messages-router');
 const e2eeRouter = require('./routers/e2ee-router');
 const SchedulerService = require('./helpers/scheduler-helper');
@@ -94,7 +94,7 @@ async function bootstrap() {
 	});
 
 	app.use(sessionRouter);
-	app.use(usersRouter);
+	app.use(usersRouterModule.createUsersRouter({ realtimeService }));
 	app.use(e2eeRouter);
 	app.use('/api/scheduled-messages', scheduledMessagesRouter);
 	app.use('/api', searchRouter);

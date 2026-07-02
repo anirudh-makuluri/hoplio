@@ -12,6 +12,7 @@ import { useAppDispatch, useAppSelector } from '@/redux/store'
 import { joinChatRoom, setActiveRoomId } from '@/redux/chatSlice'
 import { joinSocketRoom } from '@/redux/socketSlice'
 import { useDeviceId } from '@/lib/hooks/useE2EE'
+import { cn } from '@/lib/utils'
 
 type Props = {
     friends?: TUser[]
@@ -115,13 +116,26 @@ export default function CreateGroupDialog({ friends = [] }: Props) {
                     </div>
                     <div className='max-h-64 overflow-y-auto space-y-2'>
                         {friends.map(f => (
-                            <div key={f.uid} className='flex items-center justify-between'>
-                                <div className='flex items-center gap-2'>
-                                    <Avatar className='h-6 w-6'><AvatarImage src={f.photo_url} /></Avatar>
-                                    <span className='text-sm'>{f.name}</span>
+                            <button
+                                key={f.uid}
+                                type='button'
+                                onClick={() => toggle(f.uid)}
+                                aria-pressed={!!selected[f.uid]}
+                                className={cn(
+                                    'flex w-full items-center gap-3 rounded-2xl border px-3 py-3 text-left transition-all duration-200',
+                                    selected[f.uid]
+                                        ? 'border-cyan-400/30 bg-gradient-to-r from-cyan-500/14 to-blue-500/12 shadow-[0_16px_32px_-24px_rgba(34,211,238,0.5)]'
+                                        : 'border-white/10 bg-slate-950/45 hover:border-white/15 hover:bg-white/5'
+                                )}
+                            >
+                                <Avatar className='h-9 w-9 border border-white/10'>
+                                    <AvatarImage src={f.photo_url} />
+                                </Avatar>
+                                <div className='min-w-0 flex-1'>
+                                    <p className='truncate text-sm font-medium text-slate-50'>{f.name}</p>
+                                    <p className='truncate text-xs text-muted-foreground'>{f.email}</p>
                                 </div>
-                                <input type='checkbox' checked={!!selected[f.uid]} onChange={() => toggle(f.uid)} />
-                            </div>
+                            </button>
                         ))}
                         {friends.length === 0 && <p className='text-xs opacity-70'>No friends to add.</p>}
                     </div>
