@@ -38,6 +38,12 @@ The backend is an Express and Socket.IO service backed by Firebase Admin, Firest
 
 Path: `apps/backend`
 
+### Notification Service
+
+The notification service is a Spring Boot app responsible for device registration and push notification dispatch. It stores device metadata in Firestore, accepts authenticated device registration requests from the mobile app, and accepts internal dispatch requests from the Node backend before sending notifications through Firebase Cloud Messaging.
+
+Path: `apps/notification-service`
+
 ## Core Architecture
 
 This repository is a pnpm/Turborepo monorepo.
@@ -45,6 +51,7 @@ This repository is a pnpm/Turborepo monorepo.
 ```text
 apps/
   backend/   Express, Socket.IO, Firebase Admin, scheduler, AI/search APIs
+  notification-service/ Spring Boot, Firebase Admin, FCM push delivery
   web/       Next.js, React, Redux Toolkit, Tailwind, shadcn/Radix UI
   mobile/    Expo, React Native, Redux Toolkit, NativeWind
 
@@ -57,6 +64,7 @@ packages/
 
 - Frontend: Next.js, React, Tailwind CSS, Radix UI, shadcn-style components
 - Mobile: Expo, React Native, Expo Router, NativeWind, React Native Paper
+- Push delivery: Spring Boot, Firebase Admin SDK, Firebase Cloud Messaging
 - State: Redux Toolkit and React Redux
 - Realtime: Socket.IO with optional Redis adapter support
 - Auth and data: Firebase Auth, Firebase Admin, Firestore, Firebase Storage
@@ -70,6 +78,8 @@ packages/
 
 - Node.js
 - pnpm 10
+- Java 17
+- Maven
 - Firebase project credentials for the backend
 - Optional AI/search credentials depending on the features you run locally
 
@@ -99,12 +109,46 @@ Fill in the Firebase service account values and any optional integration keys yo
 - `UPSTASH_REDIS_REST_TOKEN`
 - `REDIS_URL`
 
+If you want the backend to dispatch push notifications, also set:
+
+- `NOTIFICATION_SERVICE_URL`
+- `NOTIFICATION_INTERNAL_TOKEN`
+
+### Configure the Notification Service
+
+Create a notification-service environment file from the example:
+
+```bash
+cp apps/notification-service/.env.example apps/notification-service/.env
+```
+
+Fill in:
+
+- `PORT` (defaults to `8080`)
+- `NOTIFICATION_INTERNAL_TOKEN`
+- Either `FIREBASE_SERVICE_ACCOUNT_JSON` or the split Firebase Admin fields such as `PROJECT_ID`, `PRIVATE_KEY`, and `CLIENT_EMAIL`
+
+### Configure Mobile Push Registration
+
+Android push registration in the Expo app can point to the Spring service directly. For local development, set:
+
+```bash
+EXPO_PUBLIC_NOTIFICATION_SERVICE_URL=http://<your-machine-ip>:8080
+```
+
 ### Run the Apps
 
-Run everything through Turborepo:
+Run the JavaScript apps through Turborepo:
 
 ```bash
 pnpm dev
+```
+
+The notification service is separate from the pnpm/Turbo pipeline, so start it in another terminal:
+
+```bash
+cd apps/notification-service
+mvn spring-boot:run
 ```
 
 Or run individual apps:
@@ -123,6 +167,8 @@ pnpm --filter @hoplio/backend test
 pnpm --filter @hoplio/backend test:notifications -- --recipient-user-id <firebase-uid>
 pnpm --filter @hoplio/web dev
 pnpm --filter @hoplio/mobile start
+cd apps/notification-service && mvn test
+cd apps/notification-service && mvn spring-boot:run
 ```
 
 ### Smoke Test The Notification Service Without A Phone
