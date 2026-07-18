@@ -16,7 +16,9 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com",
+        "HOPLIO_NATIVE_VENDOR_ROOT": "/tmp/hoplio-native",
+        "HOPLIO_NATIVE_BUILD_ROOT": "/tmp/hoplio-cxx"
       }
     },
     "production": {
@@ -28,7 +30,9 @@
       },
       "channel": "production",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com",
+        "HOPLIO_NATIVE_VENDOR_ROOT": "/tmp/hoplio-native",
+        "HOPLIO_NATIVE_BUILD_ROOT": "/tmp/hoplio-cxx"
       }
     },
     "apk": {
@@ -39,7 +43,9 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com",
+        "HOPLIO_NATIVE_VENDOR_ROOT": "/tmp/hoplio-native",
+        "HOPLIO_NATIVE_BUILD_ROOT": "/tmp/hoplio-cxx"
       }
     },
     "aab": {
@@ -50,7 +56,9 @@
       "distribution": "internal",
       "channel": "preview",
       "env": {
-        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com",
+        "HOPLIO_NATIVE_VENDOR_ROOT": "/tmp/hoplio-native",
+        "HOPLIO_NATIVE_BUILD_ROOT": "/tmp/hoplio-cxx"
       }
     },
     "development-simulator": {

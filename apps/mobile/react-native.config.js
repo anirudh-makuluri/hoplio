@@ -1,5 +1,6 @@
 const path = require('path');
 
+// Keep in sync with scripts/prepare-expo-native-paths.js and android/app/build.gradle.
 const nativeVendorRoot =
   process.env.HOPLIO_NATIVE_VENDOR_ROOT ||
   (process.platform === 'win32'

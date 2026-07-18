@@ -1,14 +1,15 @@
 const fs = require("fs");
-const os = require("os");
 const path = require("path");
 
 const appRoot = path.join(__dirname, "..");
 const localVendorRoot = path.join(appRoot, "vendor-node_modules");
+// Keep in sync with react-native.config.js and android/app/build.gradle.
+// Windows uses a drive-root short path (MAX_PATH); Linux/EAS uses /tmp.
 const shortVendorRoot =
   process.env.HOPLIO_NATIVE_VENDOR_ROOT ||
   (process.platform === "win32"
     ? path.join(process.env.SystemDrive || "C:", "hoplio-native")
-    : path.join(os.tmpdir(), "hoplio-native"));
+    : path.join("/tmp", "hoplio-native"));
 const shortVendorNodeModules = path.join(shortVendorRoot, "node_modules");
 const expoPackageJsonPath = require.resolve("expo/package.json", {
   paths: [appRoot],

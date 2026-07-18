@@ -3,9 +3,22 @@ apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 
 def projectRoot = rootDir.getAbsoluteFile().getParentFile().getAbsolutePath()
-def shortNativeVendorRoot = System.getenv('HOPLIO_NATIVE_VENDOR_ROOT') ?: ((System.getenv('SystemDrive') ?: 'C:') + '/hoplio-native')
-def shortNativeBuildRoot = System.getenv('HOPLIO_NATIVE_BUILD_ROOT') ?: ((System.getenv('SystemDrive') ?: 'C:') + '/hoplio-cxx')
+// Short vendor/build roots exist for Windows MAX_PATH; on Linux/EAS use /tmp (must match
+// scripts/prepare-expo-native-paths.js and react-native.config.js).
+def isWindowsHost = System.getProperty('os.name').toLowerCase().contains('windows')
+def shortNativeVendorRoot = System.getenv('HOPLIO_NATIVE_VENDOR_ROOT') ?: (
+    isWindowsHost
+        ? ((System.getenv('SystemDrive') ?: 'C:') + File.separator + 'hoplio-native')
+        : '/tmp/hoplio-native'
+)
+def shortNativeBuildRoot = System.getenv('HOPLIO_NATIVE_BUILD_ROOT') ?: (
+    isWindowsHost
+        ? ((System.getenv('SystemDrive') ?: 'C:') + File.separator + 'hoplio-cxx')
+        : '/tmp/hoplio-cxx'
+)
+// Reanimated expects the path to the react-native-worklets package directory.
 project.ext.REACT_NATIVE_WORKLETS_NODE_MODULES_DIR = new File(shortNativeVendorRoot, "react-native-worklets").absolutePath
+logger.lifecycle("[hoplio] REACT_NATIVE_WORKLETS_NODE_MODULES_DIR=${project.ext.REACT_NATIVE_WORKLETS_NODE_MODULES_DIR}")
 
 /**
  * This is the configuration block to customize your React Native Android app.
@@ -203,12 +216,27 @@ tasks.matching { it.name.startsWith("externalNativeBuildClean") }.configureEach 
 gradle.projectsEvaluated {
     def workletsProject = findProject(":react-native-worklets")
     def reanimatedProject = findProject(":react-native-reanimated")
-    def workletsPrefabTask = workletsProject?.tasks?.findByName("prefabReleasePackage")
+    if (workletsProject == null || reanimatedProject == null) {
+        return
+    }
 
-    if (workletsPrefabTask != null && reanimatedProject != null) {
-        reanimatedProject.tasks.matching { it.name.startsWith("configureCMakeRelWithDebInfo") }.configureEach {
-            dependsOn(workletsPrefabTask)
-        }
+    // Ensure worklets native libs exist before reanimated configures/builds against them.
+    def workletsNativeDeps = workletsProject.tasks.matching { task ->
+        task.name == "prefabReleasePackage" ||
+            task.name.startsWith("buildCMakeRelWithDebInfo") ||
+            task.name.startsWith("buildCMakeRelease") ||
+            task.name.startsWith("externalNativeBuildRelease") ||
+            task.name.startsWith("configureCMakeRelWithDebInfo") ||
+            task.name.startsWith("configureCMakeRelease")
+    }
+
+    reanimatedProject.tasks.matching { task ->
+        task.name.startsWith("configureCMakeRelWithDebInfo") ||
+            task.name.startsWith("buildCMakeRelWithDebInfo") ||
+            task.name.startsWith("configureCMakeRelease") ||
+            task.name.startsWith("buildCMakeRelease")
+    }.configureEach { task ->
+        task.dependsOn(workletsNativeDeps)
     }
 }
 
