@@ -46,8 +46,9 @@
         "origin": false
       },
       "eas": {
-        "projectId": "cc659104-5f7f-472f-83c4-df699340a074"
+        "projectId": "d47ddaa2-60e1-4c32-82ba-ab0280f2b02d"
       }
-    }
+    },
+    "owner": "arm8tron"
   }
 }
