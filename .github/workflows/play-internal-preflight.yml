@@ -1,7 +1,12 @@
 name: Play Internal Preflight
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - feature/play-internal-task-tools
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/play-internal-preflight.yml"
 
 jobs:
   preflight:
