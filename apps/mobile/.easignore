@@ -1,6 +1,35 @@
-# Local build outputs (not needed for EAS; reduces upload size)
-builds/*
-
-# Git and IDE
+# Keep EAS uploads small and avoid Windows file locks from local Gradle/vendor copies.
 .git/
 .idea/
+.expo/
+.metro-health-check*
+dist/
+web-build/
+builds/*
+node_modules/
+vendor-node_modules/
+
+# Local Android build artifacts
+android/.gradle/
+android/app/build/
+android/build/
+android/.idea/
+android/local.properties
+
+# Secrets / keystores (EAS uses remote credentials)
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.pem
+credentials.json
+google-play-service-account.json
+@arm8tron__hoplio.jks
+
+# Logs / caches
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+*.tsbuildinfo
+.env*.local
