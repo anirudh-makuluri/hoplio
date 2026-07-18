@@ -11,8 +11,9 @@
 # One-time Expo / Play Console setup (not stored in this repo):
 #   1. App exists in Play Console (package: com.arm8tron.hoplio)
 #   2. Service account invited in Play Console with Release permissions
-#   3. At least one successful local `eas build -p android --profile production`
-#      so Android keystore credentials exist for non-interactive CI
+#   3. Upload keystore to EAS (must match Play upload key if app already listed):
+#        cd apps/mobile && eas credentials -p android
+#      Upload android/hoplio-upload.jks (alias typically "hoplio-upload")
 #   4. Internal testing track created; testers added under Testers
 #
 # Prefer on main:

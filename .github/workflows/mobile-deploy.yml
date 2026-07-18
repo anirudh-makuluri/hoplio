@@ -13,6 +13,14 @@
 #   GOOGLE_SERVICE_ACCOUNT_KEY — full JSON of a Play Console API service account
 #     https://expo.fyi/creating-google-service-account
 #     Service account must be invited in Play Console with Release permissions.
+#
+# One-time Android upload keystore on EAS (required for signed Play AABs):
+#   From apps/mobile with your existing hoplio-upload.jks:
+#     eas credentials -p android
+#   Choose production → Keystore → upload/set the existing keystore
+#   (alias is typically "hoplio-upload").
+#   Or set EAS env secrets HOPLIO_UPLOAD_KEYSTORE_BASE64 + password/alias vars
+#   (see apps/mobile/eas-build-pre-install.sh).
 
 name: Mobile Deploy
 

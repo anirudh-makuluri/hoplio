@@ -70,13 +70,43 @@ react {
  * Set this to true in release builds to optimize the app using [R8](https://developer.android.com/topic/performance/app-optimization/enable-app-optimization).
  */
 def enableMinifyInReleaseBuilds = (findProperty('android.enableMinifyInReleaseBuilds') ?: true).toBoolean()
-def resolveReleaseSigningValue = { key -> findProperty(key) ?: System.getenv(key) }
-def hasReleaseSigning = [
-    'HOPLIO_UPLOAD_STORE_FILE',
+// Prefer project props / env. Support Hoplio local names and common EAS/Android names.
+def resolveReleaseSigningValue = { keys ->
+    def keyList = keys instanceof List ? keys : [keys]
+    for (key in keyList) {
+        def value = findProperty(key) ?: System.getenv(key)
+        if (value) {
+            return value
+        }
+    }
+    return null
+}
+def releaseStorePassword = resolveReleaseSigningValue([
     'HOPLIO_UPLOAD_STORE_PASSWORD',
+    'ANDROID_KEYSTORE_PASSWORD',
+])
+def releaseKeyAlias = resolveReleaseSigningValue([
     'HOPLIO_UPLOAD_KEY_ALIAS',
+    'ANDROID_KEY_ALIAS',
+])
+def releaseKeyPassword = resolveReleaseSigningValue([
     'HOPLIO_UPLOAD_KEY_PASSWORD',
-].every { resolveReleaseSigningValue(it) }
+    'ANDROID_KEY_PASSWORD',
+])
+def releaseStoreFilePath = resolveReleaseSigningValue([
+    'HOPLIO_UPLOAD_STORE_FILE',
+    'ANDROID_KEYSTORE_PATH',
+])
+// Default keystore used by local builds and eas-build-pre-install decode.
+if (!releaseStoreFilePath) {
+    def defaultKeystore = rootProject.file('hoplio-upload.jks')
+    if (defaultKeystore.exists()) {
+        releaseStoreFilePath = defaultKeystore.absolutePath
+    }
+}
+def hasReleaseSigning = releaseStoreFilePath && releaseStorePassword && releaseKeyAlias && releaseKeyPassword
+// EAS Build injects signing via -Pandroid.injected.signing.* when remote credentials exist.
+def isEasBuild = System.getenv('EAS_BUILD') == 'true'
 
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
@@ -116,10 +146,10 @@ android {
         }
         if (hasReleaseSigning) {
             release {
-                storeFile file(resolveReleaseSigningValue('HOPLIO_UPLOAD_STORE_FILE'))
-                storePassword resolveReleaseSigningValue('HOPLIO_UPLOAD_STORE_PASSWORD')
-                keyAlias resolveReleaseSigningValue('HOPLIO_UPLOAD_KEY_ALIAS')
-                keyPassword resolveReleaseSigningValue('HOPLIO_UPLOAD_KEY_PASSWORD')
+                storeFile file(releaseStoreFilePath)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
             }
         }
     }
@@ -128,14 +158,18 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            if (!hasReleaseSigning) {
+            if (hasReleaseSigning) {
+                signingConfig signingConfigs.release
+            } else if (!isEasBuild) {
                 throw new GradleException(
                     "Release signing is not configured. Set HOPLIO_UPLOAD_STORE_FILE, " +
                     "HOPLIO_UPLOAD_STORE_PASSWORD, HOPLIO_UPLOAD_KEY_ALIAS, and " +
-                    "HOPLIO_UPLOAD_KEY_PASSWORD before building a release bundle."
+                    "HOPLIO_UPLOAD_KEY_PASSWORD (or ANDROID_KEYSTORE_* equivalents) " +
+                    "before building a release bundle locally."
                 )
             }
-            signingConfig signingConfigs.release
+            // On EAS Build without explicit HOPLIO_* env: use remote credentials
+            // injected by EAS as -Pandroid.injected.signing.*
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'true'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
