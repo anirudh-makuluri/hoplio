@@ -1,0 +1,51 @@
+name: Play Internal Preflight
+
+on:
+  push:
+    branches:
+      - feature/play-internal-task-tools
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/play-internal-preflight.yml"
+
+jobs:
+  preflight:
+    name: Verify Expo auth and EAS project config
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify Expo login
+        run: eas whoami
+
+      - name: Verify linked EAS project
+        working-directory: apps/mobile
+        run: eas project:info
+
+      - name: Verify Android production config resolves
+        working-directory: apps/mobile
+        run: eas config --platform android --profile production --non-interactive

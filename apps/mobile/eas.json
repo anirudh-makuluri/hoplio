@@ -6,13 +6,15 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development"
     },
     "preview": {
       "android": {
         "buildType": "app-bundle"
       },
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
       }
@@ -33,7 +35,11 @@
         "buildType": "apk",
         "gradleCommand": ":app:assembleRelease"
       },
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
+      }
     },
     "aab": {
       "android": {
@@ -41,6 +47,7 @@
         "autoIncrement": true
       },
       "distribution": "internal",
+      "channel": "preview",
       "env": {
         "EXPO_PUBLIC_BACKEND_URL": "https://hoplio.onrender.com"
       }
@@ -51,11 +58,22 @@
       "ios": {
         "simulator": true
       },
-      "environment": "development"
+      "environment": "development",
+      "channel": "development-simulator"
     }
   },
   "submit": {
-    "production": {}
+    "internal": {
+      "android": {
+        "track": "internal",
+        "releaseStatus": "completed"
+      }
+    },
+    "production": {
+      "android": {
+        "track": "production",
+        "releaseStatus": "draft"
+      }
+    }
   }
 }
-
