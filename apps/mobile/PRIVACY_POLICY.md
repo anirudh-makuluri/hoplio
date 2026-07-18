@@ -1,6 +1,8 @@
 # Hoplio Privacy Policy
 
-**Last updated:** 2026-06-03
+**Last updated:** 2026-07-18
+
+**Public URL:** https://hoplio-web.vercel.app/privacy
 
 ## Overview
 
@@ -22,6 +24,7 @@ We only access photos or files when you choose them from inside the app.
 - **Internet / network** - To send and receive messages and sync data
 - **Storage (photos/files)** - To attach and send files from your device
 - **Network state** - To detect connectivity and support offline use
+- **Notifications** - To alert you about new messages when you enable push notifications
 
 ## Data We Collect and Use
 
@@ -37,6 +40,7 @@ The app may use services such as:
 
 - **Firebase** - Authentication and backend
 - **Google Sign-In** - For signing in with your Google account
+- **Firebase Cloud Messaging** - Push notification delivery when enabled
 
 Their privacy policies apply to data they process on our behalf.
 

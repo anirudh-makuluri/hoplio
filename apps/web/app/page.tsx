@@ -445,9 +445,17 @@ export default function Home() {
 					<span className="text-sm font-heading font-bold bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent select-none">
 						hoplio
 					</span>
-					<p className="text-sm text-muted-foreground">
-						Building connectivity that doesn&apos;t quit.
-					</p>
+					<div className="flex flex-col sm:flex-row items-center gap-3 sm:gap-6">
+						<p className="text-sm text-muted-foreground">
+							Building connectivity that doesn&apos;t quit.
+						</p>
+						<a
+							href="/privacy"
+							className="text-sm text-muted-foreground hover:text-foreground transition-colors underline-offset-4 hover:underline"
+						>
+							Privacy Policy
+						</a>
+					</div>
 				</div>
 			</footer>
 		</div>

@@ -381,7 +381,7 @@ Goal: make mobile ready for a real external beta and store submission.
 
 #### Store Readiness
 
-- [ ] Host privacy policy at a public URL
+- [x] Host privacy policy at a public URL (`https://hoplio-web.vercel.app/privacy`)
 - [ ] Complete Play Console data safety details
 - [ ] Add support contact details
 - [ ] Prepare store screenshots and graphics
