@@ -36,6 +36,9 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
       - name: Verify Expo login
         run: eas whoami
 
