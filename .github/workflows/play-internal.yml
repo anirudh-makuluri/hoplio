@@ -2,19 +2,18 @@
 # Automatic routing (OTA vs Play) lives in mobile-deploy.yml so a single
 # push never runs both paths.
 #
-# Required GitHub secret:
+# Required GitHub secrets:
 #   EXPO_TOKEN — Expo personal access token
 #     https://expo.dev/accounts/[account]/settings/access-tokens
+#   GOOGLE_SERVICE_ACCOUNT_KEY — full JSON of a Play Console API service account
+#     https://expo.fyi/creating-google-service-account
 #
 # One-time Expo / Play Console setup (not stored in this repo):
 #   1. App exists in Play Console (package: com.arm8tron.hoplio)
-#   2. Google Play service account key uploaded to EAS credentials
-#        eas credentials --platform android
-#      or Expo dashboard → Project → Credentials → Android
-#   3. Service account invited in Play Console with Release permissions
-#   4. At least one successful local `eas build -p android --profile production`
-#      so credentials and project config exist for non-interactive CI
-#   5. Internal testing track created; testers added under Testers
+#   2. Service account invited in Play Console with Release permissions
+#   3. At least one successful local `eas build -p android --profile production`
+#      so Android keystore credentials exist for non-interactive CI
+#   4. Internal testing track created; testers added under Testers
 #
 # Prefer on main:
 #   - push with native/config changes → mobile-deploy.yml (Play path)
@@ -62,6 +61,21 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Write Google Play service account key
+        working-directory: apps/mobile
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICE_ACCOUNT_KEY:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_SERVICE_ACCOUNT_KEY."
+            echo "Create a Play Console API service account JSON key and add it as a repo secret."
+            echo "Guide: https://expo.fyi/creating-google-service-account"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_KEY" > google-play-service-account.json
+          node -e "JSON.parse(require('fs').readFileSync('google-play-service-account.json','utf8'))"
+
       - name: Build Android and submit to Play internal track
         working-directory: apps/mobile
         run: >
@@ -70,3 +84,4 @@ jobs:
           --profile production
           --auto-submit-with-profile internal
           --non-interactive
+

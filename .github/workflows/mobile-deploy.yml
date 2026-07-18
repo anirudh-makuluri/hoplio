@@ -8,8 +8,11 @@
 #   2. commit message markers: [play] / [native]  or  [ota]
 #   3. changed-path heuristics (see classify job)
 #
-# Required GitHub secret:
+# Required GitHub secrets:
 #   EXPO_TOKEN — https://expo.dev/accounts/[account]/settings/access-tokens
+#   GOOGLE_SERVICE_ACCOUNT_KEY — full JSON of a Play Console API service account
+#     https://expo.fyi/creating-google-service-account
+#     Service account must be invited in Play Console with Release permissions.
 
 name: Mobile Deploy
 
@@ -201,6 +204,22 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Write Google Play service account key
+        working-directory: apps/mobile
+        env:
+          GOOGLE_SERVICE_ACCOUNT_KEY: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${GOOGLE_SERVICE_ACCOUNT_KEY:-}" ]; then
+            echo "::error::Missing GitHub secret GOOGLE_SERVICE_ACCOUNT_KEY."
+            echo "Create a Play Console API service account JSON key and add it as a repo secret."
+            echo "Guide: https://expo.fyi/creating-google-service-account"
+            exit 1
+          fi
+          printf '%s' "$GOOGLE_SERVICE_ACCOUNT_KEY" > google-play-service-account.json
+          # Validate it is JSON so we fail early with a clear error
+          node -e "JSON.parse(require('fs').readFileSync('google-play-service-account.json','utf8'))"
 
       - name: Build Android and submit to Play internal track
         working-directory: apps/mobile

@@ -12,3 +12,5 @@ dist/
 build/
 coverage/
 .expo/
+# Google Play API key for EAS Submit (written in CI from secret)
+apps/mobile/google-play-service-account.json
