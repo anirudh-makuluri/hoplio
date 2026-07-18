@@ -1,0 +1,224 @@
+# Mobile release router for main:
+#   - OTA (eas update) when only JS / assets / styles change
+#   - Play internal (eas build + submit) when native / config needs a new binary
+# Never runs both on the same push.
+#
+# Decision order:
+#   1. workflow_dispatch input (auto | ota | play-internal)
+#   2. commit message markers: [play] / [native]  or  [ota]
+#   3. changed-path heuristics (see classify job)
+#
+# Required GitHub secret:
+#   EXPO_TOKEN — https://expo.dev/accounts/[account]/settings/access-tokens
+
+name: Mobile Deploy
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/mobile-deploy.yml"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Deploy mode (auto = path heuristics)"
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - ota
+          - play-internal
+
+concurrency:
+  group: mobile-deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  classify:
+    name: Classify OTA vs Play
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      mode: ${{ steps.decide.outputs.mode }}
+      reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Decide deploy mode
+        id: decide
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          FORCE: ${{ github.event.inputs.force || 'auto' }}
+          BEFORE: ${{ github.event.before }}
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+
+          write_out() {
+            echo "mode=$1" >> "$GITHUB_OUTPUT"
+            echo "reason=$2" >> "$GITHUB_OUTPUT"
+            echo "Deploy mode: $1 ($2)"
+          }
+
+          # 1) Explicit manual choice
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] && [ "$FORCE" != "auto" ]; then
+            write_out "$FORCE" "workflow_dispatch force=$FORCE"
+            exit 0
+          fi
+
+          # 2) Commit message markers (highest auto priority)
+          MSG=$(git log -1 --pretty=%B)
+          if printf '%s' "$MSG" | grep -qiE '\[(play|native)(-build)?\]'; then
+            write_out "play-internal" "commit message requests native/Play build"
+            exit 0
+          fi
+          if printf '%s' "$MSG" | grep -qiE '\[ota\]'; then
+            write_out "ota" "commit message requests OTA"
+            exit 0
+          fi
+
+          # 3) Path heuristics
+          if [ -n "${BEFORE:-}" ] && [ "$BEFORE" != "0000000000000000000000000000000000000000" ] \
+            && git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            mapfile -t CHANGED < <(git diff --name-only "$BEFORE" "$SHA" -- apps/mobile .github/workflows/mobile-deploy.yml || true)
+          else
+            mapfile -t CHANGED < <(git diff --name-only "${SHA}^" "$SHA" -- apps/mobile .github/workflows/mobile-deploy.yml 2>/dev/null || true)
+          fi
+
+          if [ "${#CHANGED[@]}" -eq 0 ] || [ -z "${CHANGED[0]:-}" ]; then
+            write_out "skip" "no mobile paths in this push"
+            exit 0
+          fi
+
+          printf 'Changed files:\n'
+          printf '  %s\n' "${CHANGED[@]}"
+
+          # Anything that can change the native binary / runtime compatibility
+          NATIVE_RE='^apps/mobile/(android/|ios/|package\.json$|package-lock\.json$|app\.json$|eas\.json$|google-services\.json$|react-native\.config\.js$|plugins/|vendor-node_modules/|scripts/prepare-expo-native-paths\.js$|scripts/expo-cli-release\.js$)'
+
+          for f in "${CHANGED[@]}"; do
+            if printf '%s' "$f" | grep -qE "$NATIVE_RE"; then
+              write_out "play-internal" "native/config path changed: $f"
+              exit 0
+            fi
+          done
+
+          # JS / assets / styles → OTA-safe
+          OTA_RE='^apps/mobile/(app/|components/|lib/|redux/|assets/|global\.css$|globals\.ts$|types\.ts$|env\.d\.ts$|nativewind-env\.d\.ts$|babel\.config\.js$|metro\.config\.js$|tailwind\.config\.js$|tsconfig\.json$|index\.js$)'
+
+          for f in "${CHANGED[@]}"; do
+            if printf '%s' "$f" | grep -qE "$OTA_RE"; then
+              write_out "ota" "JS/asset path changed: $f"
+              exit 0
+            fi
+          done
+
+          # Mobile path changed but not classified (e.g. README, PRIVACY) → skip
+          write_out "skip" "mobile paths changed but none require deploy"
+
+  ota:
+    name: Publish OTA update
+    needs: classify
+    if: needs.classify.outputs.mode == 'ota'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Publish update to production channel
+        working-directory: apps/mobile
+        env:
+          # Keep message under EAS limits; include short SHA for traceability
+          UPDATE_MESSAGE: ${{ github.event.head_commit.message || github.event_name }}
+        run: |
+          set -euo pipefail
+          MSG=$(printf '%s' "$UPDATE_MESSAGE" | head -n 1 | cut -c1-200)
+          if [ -z "$MSG" ]; then
+            MSG="OTA from ${GITHUB_SHA::7}"
+          fi
+          echo "Publishing OTA: $MSG"
+          echo "Reason: ${{ needs.classify.outputs.reason }}"
+          eas update \
+            --channel production \
+            --message "$MSG" \
+            --non-interactive
+
+  play-internal:
+    name: Build and submit to Play internal
+    needs: classify
+    if: needs.classify.outputs.mode == 'play-internal'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.0.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Setup Expo and EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build Android and submit to Play internal track
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          echo "Reason: ${{ needs.classify.outputs.reason }}"
+          eas build \
+            --platform android \
+            --profile production \
+            --auto-submit-with-profile internal \
+            --non-interactive
+
+  skip:
+    name: No mobile deploy
+    needs: classify
+    if: needs.classify.outputs.mode == 'skip'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report skip
+        run: |
+          echo "Skipped mobile deploy: ${{ needs.classify.outputs.reason }}"

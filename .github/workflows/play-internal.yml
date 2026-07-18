@@ -1,5 +1,6 @@
-# Build a store AAB with EAS and submit it to the Google Play
-# internal testing track.
+# Manual Play internal deploy only.
+# Automatic routing (OTA vs Play) lives in mobile-deploy.yml so a single
+# push never runs both paths.
 #
 # Required GitHub secret:
 #   EXPO_TOKEN — Expo personal access token
@@ -14,20 +15,20 @@
 #   4. At least one successful local `eas build -p android --profile production`
 #      so credentials and project config exist for non-interactive CI
 #   5. Internal testing track created; testers added under Testers
+#
+# Prefer on main:
+#   - push with native/config changes → mobile-deploy.yml (Play path)
+#   - commit message [play] or [native] → force Play via mobile-deploy.yml
+#   - workflow_dispatch on mobile-deploy.yml with force=play-internal
+# Use this workflow for an explicit manual rebuild outside that router.
 
 name: Play Internal Testing
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - main
-    paths:
-      - "apps/mobile/**"
-      - ".github/workflows/play-internal.yml"
 
 concurrency:
-  group: play-internal-${{ github.ref }}
+  group: mobile-deploy-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
