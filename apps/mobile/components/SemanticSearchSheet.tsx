@@ -3,14 +3,15 @@ import { View, ScrollView, TouchableOpacity } from "react-native";
 import {
   Portal,
   Dialog,
-  Button,
   TextInput,
   Text,
   ActivityIndicator,
-  useTheme,
 } from "react-native-paper";
 import { semanticSearch } from "~/lib/semanticSearch";
 import type { SemanticSearchResult } from "~/lib/types";
+import { useTheme } from "~/lib/themeContext";
+import { AppButton } from "~/components/ui";
+import { hapticError, hapticLight, hapticMedium, hapticSuccess } from "~/lib/haptics";
 
 interface SemanticSearchSheetProps {
   roomId: string;
@@ -28,11 +29,13 @@ export default function SemanticSearchSheet({
   const [results, setResults] = useState<SemanticSearchResult[]>([]);
   const [errorMessage, setErrorMessage] = useState("");
   const [hasSearched, setHasSearched] = useState(false);
-  const theme = useTheme();
+  const { colors } = useTheme();
 
   const handleSearch = async () => {
     const trimmedQuery = query.trim();
     if (!trimmedQuery) return;
+
+    void hapticMedium();
 
     setLoading(true);
     setResults([]);
@@ -45,11 +48,15 @@ export default function SemanticSearchSheet({
         setResults(response.results);
         if (response.results.length === 0) {
           setErrorMessage(response.message || "No matching messages found.");
+        } else {
+          void hapticSuccess();
         }
       } else {
+        void hapticError();
         setErrorMessage(response.error || "Search failed. Please try again.");
       }
     } catch (error) {
+      void hapticError();
       setErrorMessage("Search failed. Check your connection and try again.");
     } finally {
       setLoading(false);
@@ -58,12 +65,12 @@ export default function SemanticSearchSheet({
 
   return (
     <Portal>
-      <Dialog visible={visible} onDismiss={onClose}>
-        <Dialog.Title>Search by meaning</Dialog.Title>
+      <Dialog visible={visible} onDismiss={onClose} style={{ backgroundColor: colors.surface }}>
+        <Dialog.Title style={{ color: colors.text, fontWeight: "800" }}>Search by meaning</Dialog.Title>
         <Dialog.Content>
           <Text
             variant="bodySmall"
-            style={{ marginBottom: 8, color: theme.colors.onSurfaceVariant }}
+            style={{ marginBottom: 8, color: colors.textSecondary }}
           >
             Find messages by topic, not just exact words.
           </Text>
@@ -75,15 +82,19 @@ export default function SemanticSearchSheet({
               onChangeText={setQuery}
               style={{ flex: 1 }}
               onSubmitEditing={handleSearch}
+              outlineColor={colors.border}
+              activeOutlineColor={colors.primary}
+              textColor={colors.text}
+              theme={{ colors: { onSurfaceVariant: colors.textSecondary } }}
             />
-            <Button
-              mode="contained"
+            <AppButton
               onPress={handleSearch}
               disabled={loading || !query.trim()}
               loading={loading}
+              compact
             >
-              <Text style={{ color: "#fff" }}>Search</Text>
-            </Button>
+              Search
+            </AppButton>
           </View>
 
           {loading && (
@@ -101,11 +112,12 @@ export default function SemanticSearchSheet({
                 <TouchableOpacity
                   key={`${result.message.id}-${index}`}
                   onPress={onClose}
+                  onPressIn={() => void hapticLight()}
                   style={{
                     paddingVertical: 10,
                     paddingHorizontal: 4,
                     borderBottomWidth: 1,
-                    borderBottomColor: theme.colors.surfaceVariant,
+                    borderBottomColor: colors.border,
                   }}
                 >
                   <View
@@ -117,18 +129,18 @@ export default function SemanticSearchSheet({
                   >
                     <Text
                       variant="labelSmall"
-                      style={{ color: theme.colors.onSurfaceVariant }}
+                      style={{ color: colors.textSecondary }}
                     >
                       {result.message.userName}
                     </Text>
                     <Text
                       variant="labelSmall"
-                      style={{ color: theme.colors.onSurfaceVariant }}
+                      style={{ color: colors.textSecondary }}
                     >
                       {(result.score * 100).toFixed(0)}%
                     </Text>
                   </View>
-                  <Text variant="bodyMedium" numberOfLines={2}>
+                  <Text variant="bodyMedium" numberOfLines={2} style={{ color: colors.text }}>
                     {result.message.chatInfo}
                   </Text>
                 </TouchableOpacity>
@@ -141,12 +153,12 @@ export default function SemanticSearchSheet({
               style={{
                 borderRadius: 12,
                 padding: 12,
-                backgroundColor: theme.colors.surfaceVariant,
+                backgroundColor: colors.muted,
               }}
             >
               <Text
                 variant="bodySmall"
-                style={{ color: theme.colors.onSurfaceVariant }}
+                style={{ color: colors.textSecondary }}
               >
                 {errorMessage}
               </Text>
@@ -154,7 +166,7 @@ export default function SemanticSearchSheet({
           )}
         </Dialog.Content>
         <Dialog.Actions>
-          <Button onPress={onClose}>Close</Button>
+          <AppButton variant="ghost" compact onPress={onClose}>Close</AppButton>
         </Dialog.Actions>
       </Dialog>
     </Portal>

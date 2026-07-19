@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { FlatList, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { Button, Icon } from 'react-native-paper';
+import { FlatList, StyleSheet, Text, View } from 'react-native';
+import { Icon } from 'react-native-paper';
 import { router } from 'expo-router';
 import RoomDisplayItem from '../RoomDisplayItem';
 import FilterTabs, { FilterType } from '../FilterTabs';
@@ -11,6 +11,9 @@ import { joinChatRoom, setActiveRoomId } from '~/redux/chatSlice';
 import { joinSocketRoom } from '~/redux/socketSlice';
 import { createAIAssistantRoom, getErrorMessage } from '~/lib/utils';
 import { useToast } from '../Toast';
+import { AppButton } from '~/components/ui';
+import PressableScale from '~/components/ui/PressableScale';
+import { hapticLight } from '~/lib/haptics';
 
 interface RoomListProps {
 	onCreateGroup?: () => void;
@@ -43,6 +46,8 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 			return;
 		}
 
+		void hapticLight();
+
 		try {
 			if (aiRoom) {
 				if (!rooms[aiRoom.roomId]) {
@@ -72,27 +77,17 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 
 	const renderEmptyState = () => (
 		<View style={styles.emptyContainer}>
-			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-				<Icon source="chat" size={48} color={colors.primary} />
+			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : '#D7FFB8' }]}>
+				<Icon source="chat" size={48} color={colors.primaryDark} />
 			</View>
-			<Text style={[styles.emptyTitle, { color: colors.text }]}>No Chats Yet</Text>
+			<Text style={[styles.emptyTitle, { color: colors.text }]}>No chats yet</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
-				Start a conversation by adding friends or creating a group chat
+				Add friends or start a group — your conversations will land here.
 			</Text>
-			<View style={[styles.tipCard, { backgroundColor: colors.surface, borderColor: colors.border }]}>
-				<Text style={[styles.tipText, { color: colors.primary }]}>
-					Go to the Friends tab to add people and start chatting.
-				</Text>
-			</View>
 			{onCreateGroup && (
-				<Button
-					mode="contained"
-					onPress={onCreateGroup}
-					icon="account-multiple-plus"
-					style={[styles.createButton, { backgroundColor: colors.primary }]}
-				>
+				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth style={styles.createButton}>
 					Create Group Chat
-				</Button>
+				</AppButton>
 			)}
 		</View>
 	);
@@ -102,19 +97,14 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
 				<Icon source="account-group" size={40} color={colors.textSecondary} />
 			</View>
-			<Text style={[styles.emptyTitle, { color: colors.textSecondary }]}>No Groups Yet</Text>
+			<Text style={[styles.emptyTitle, { color: colors.text }]}>No groups yet</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
-				Create a group to start chatting with multiple friends
+				Create a group to chat with multiple friends at once.
 			</Text>
 			{onCreateGroup && (
-				<Button
-					mode="contained"
-					onPress={onCreateGroup}
-					icon="account-multiple-plus"
-					style={[styles.createButton, { backgroundColor: colors.primary }]}
-				>
+				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth style={styles.createButton}>
 					Create Group
-				</Button>
+				</AppButton>
 			)}
 		</View>
 	);
@@ -123,13 +113,19 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 		<>
 			<FilterTabs activeFilter={activeFilter} onFilterChange={setActiveFilter} />
 
-			<TouchableOpacity
-				style={[styles.aiCard, { backgroundColor: colors.surface, borderColor: colors.border }]}
-				activeOpacity={0.8}
+			<PressableScale
+				style={[
+					styles.aiCard,
+					{
+						backgroundColor: colors.surface,
+						borderColor: colors.ai,
+					},
+				]}
+				haptic="none"
 				onPress={openAIRoom}
 			>
-				<View style={[styles.aiIcon, { backgroundColor: isDark ? 'rgba(99,102,241,0.22)' : '#eef2ff' }]}>
-					<Icon source="robot-happy-outline" size={24} color="#6366f1" />
+				<View style={[styles.aiIcon, { backgroundColor: colors.aiSoft }]}>
+					<Icon source="robot-happy-outline" size={24} color={colors.ai} />
 				</View>
 				<View style={styles.aiContent}>
 					<Text style={[styles.aiTitle, { color: colors.text }]}>AI Assistant</Text>
@@ -137,7 +133,8 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 						{aiRoom ? 'Open your assistant room' : 'Create a private AI assistant room'}
 					</Text>
 				</View>
-			</TouchableOpacity>
+				<Icon source="chevron-right" size={22} color={colors.ai} />
+			</PressableScale>
 		</>
 	);
 
@@ -173,18 +170,18 @@ const styles = StyleSheet.create({
 	aiCard: {
 		marginHorizontal: 16,
 		marginTop: 12,
-		marginBottom: 4,
+		marginBottom: 8,
 		paddingHorizontal: 14,
 		paddingVertical: 14,
-		borderRadius: 18,
-		borderWidth: 1,
+		borderRadius: 16,
+		borderWidth: 2,
 		flexDirection: 'row',
 		alignItems: 'center',
 	},
 	aiIcon: {
 		width: 46,
 		height: 46,
-		borderRadius: 23,
+		borderRadius: 16,
 		alignItems: 'center',
 		justifyContent: 'center',
 		marginRight: 12,
@@ -194,12 +191,13 @@ const styles = StyleSheet.create({
 	},
 	aiTitle: {
 		fontSize: 16,
-		fontWeight: '700',
+		fontWeight: '800',
 		marginBottom: 2,
 	},
 	aiDescription: {
 		fontSize: 13,
 		lineHeight: 18,
+		fontWeight: '500',
 	},
 	emptyContainer: {
 		flex: 1,
@@ -218,7 +216,7 @@ const styles = StyleSheet.create({
 	},
 	emptyTitle: {
 		fontSize: 22,
-		fontWeight: '700',
+		fontWeight: '800',
 		textAlign: 'center',
 		marginBottom: 8,
 	},
@@ -228,18 +226,7 @@ const styles = StyleSheet.create({
 		lineHeight: 22,
 		marginBottom: 24,
 	},
-	tipCard: {
-		borderRadius: 14,
-		padding: 16,
-		borderWidth: 1,
-		marginBottom: 20,
-	},
-	tipText: {
-		textAlign: 'center',
-		fontWeight: '600',
-		fontSize: 14,
-	},
 	createButton: {
-		borderRadius: 12,
+		maxWidth: 280,
 	},
 });

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Avatar, Button, Text } from 'react-native-paper';
+import { Avatar, Text } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { TRoomData, TUser } from '~/lib/types';
 import { genRoomId } from '~/lib/utils';
@@ -8,6 +8,8 @@ import { joinChatRoom } from '~/redux/chatSlice';
 import { joinSocketRoom } from '~/redux/socketSlice';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
 import { useTheme } from '~/lib/themeContext';
+import { AppButton } from '~/components/ui';
+import { hapticError, hapticSuccess } from '~/lib/haptics';
 
 export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 	const { user, updateUser } = useUser();
@@ -27,6 +29,11 @@ export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 			},
 			(response: any) => {
 				if (response.success) {
+					if (accepted) {
+						void hapticSuccess();
+					} else {
+						void hapticError();
+					}
 					const receivedReqs = user.received_friend_requests;
 					const reqIdx = receivedReqs.findIndex((u) => u.uid === invitedUser.uid);
 					if (reqIdx !== -1) {
@@ -57,6 +64,7 @@ export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 						rooms,
 					});
 				} else {
+					void hapticError();
 					console.warn(response.error);
 				}
 			}
@@ -82,41 +90,26 @@ export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 					/>
 					<View style={styles.info}>
 						<Text style={[styles.name, { color: colors.text }]}>{invitedUser.name}</Text>
-						<Text style={[styles.email, { color: colors.textSecondary }]}>
-							{invitedUser.email}
-						</Text>
+						<Text style={[styles.email, { color: colors.textSecondary }]}>{invitedUser.email}</Text>
 						<View style={styles.badgeRow}>
-							<View
-								style={[
-									styles.dot,
-									{ backgroundColor: colors.primary },
-								]}
-							/>
-							<Text style={[styles.badgeText, { color: colors.primary }]}>
-								Wants to be friends
-							</Text>
+							<View style={[styles.dot, { backgroundColor: colors.accent }]} />
+							<Text style={[styles.badgeText, { color: colors.textSecondary }]}>Wants to be friends</Text>
 						</View>
 					</View>
 				</View>
-				<View style={styles.actions}>
-					<Button
-						mode="contained"
-						onPress={() => respondToRequest(true)}
-						style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
-						compact
-					>
-						Accept
-					</Button>
-					<Button
-						mode="outlined"
-						onPress={() => respondToRequest(false)}
-						textColor={colors.destructive}
-						style={[styles.declineBtn, { borderColor: colors.destructive }]}
-						compact
-					>
-						Decline
-					</Button>
-				</View>
+			</View>
+			<View style={styles.actions}>
+				<AppButton onPress={() => respondToRequest(true)} compact style={styles.actionBtn}>
+					Accept
+				</AppButton>
+				<AppButton
+					variant="secondary"
+					onPress={() => respondToRequest(false)}
+					compact
+					style={styles.actionBtn}
+				>
+					Decline
+				</AppButton>
 			</View>
 		</View>
 	);
@@ -126,8 +119,8 @@ const styles = StyleSheet.create({
 	card: {
 		marginHorizontal: 16,
 		marginVertical: 6,
-		borderRadius: 14,
-		borderWidth: 1,
+		borderRadius: 16,
+		borderWidth: 2,
 		padding: 16,
 	},
 	row: {
@@ -146,7 +139,7 @@ const styles = StyleSheet.create({
 	},
 	name: {
 		fontSize: 16,
-		fontWeight: '600',
+		fontWeight: '700',
 	},
 	email: {
 		fontSize: 13,
@@ -164,17 +157,14 @@ const styles = StyleSheet.create({
 	},
 	badgeText: {
 		fontSize: 12,
-		fontWeight: '600',
+		fontWeight: '700',
 	},
 	actions: {
 		flexDirection: 'row',
-		gap: 8,
-		marginLeft: 12,
+		gap: 10,
+		marginTop: 14,
 	},
-	acceptBtn: {
-		borderRadius: 12,
-	},
-	declineBtn: {
-		borderRadius: 12,
+	actionBtn: {
+		flex: 1,
 	},
 });

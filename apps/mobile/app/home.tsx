@@ -28,7 +28,6 @@ import Friends from '~/components/HomeTabs/Friends';
 import GroupChat from '~/components/GroupChat';
 import BottomNavBar from '~/components/BottomNavBar';
 import { useToast } from '~/components/Toast';
-import GlassSurface from '~/components/GlassSurface';
 import {
 	useE2EEInitialization,
 	useDeviceId,
@@ -40,8 +39,7 @@ import {
 	initializeNotificationResponseTracking,
 	registerAndroidPushDevice,
 } from '~/lib/pushNotifications';
-
-// Note: HamburgerMenu component has been replaced with BottomNavBar
+import { hapticMedium } from '~/lib/haptics';
 
 type TabType = 'chats' | 'updates' | 'profile';
 
@@ -325,36 +323,38 @@ export default function Page() {
 	return (
 		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
 			<View style={styles.content}>
-				{/* Header */}
-				<View style={styles.headerOuter}>
-					<GlassSurface intensity={24} rounded={22} border={false} style={styles.headerGlass}>
-						<View style={styles.header}>
-							<Text style={[styles.headerTitle, { color: colors.text }]}>
-								{currentTab === 'chats'
-									? 'Chats'
-									: currentTab === 'updates'
-											? 'Friends'
-											: 'Profile'}
-							</Text>
-						</View>
-					</GlassSurface>
+				<View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
+					<Text style={[styles.headerTitle, { color: colors.text }]}>
+						{currentTab === 'chats' ? 'Chats' : currentTab === 'updates' ? 'Friends' : 'Profile'}
+					</Text>
+					{currentTab === 'chats' ? (
+						<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
+							Keep the streak going
+						</Text>
+					) : null}
 				</View>
 
-				{/* Main Content */}
 				<View style={styles.mainContent}>{renderCurrentView()}</View>
 
-				{/* FAB for new chat/group */}
 				{currentTab === 'chats' && (
 					<FAB
 						icon="plus"
-						style={[styles.fab, { backgroundColor: colors.primary }]}
-						onPress={() => setShowGroupModal(true)}
-						color="#fff"
+						style={[
+							styles.fab,
+							{
+								backgroundColor: colors.primary,
+								shadowColor: colors.primaryDark,
+							},
+						]}
+						onPress={() => {
+							void hapticMedium();
+							setShowGroupModal(true);
+						}}
+						color={colors.primaryForeground}
 					/>
 				)}
 			</View>
 
-			{/* Bottom Navigation */}
 			<BottomNavBar
 				activeTab={currentTab}
 				onTabChange={handleTabChange}
@@ -362,7 +362,6 @@ export default function Page() {
 				pendingRequests={user?.received_friend_requests?.length || 0}
 			/>
 
-			{/* Group Creation Modal */}
 			{showGroupModal && <GroupChat onClose={() => setShowGroupModal(false)} />}
 		</SafeAreaView>
 	);
@@ -375,24 +374,21 @@ const styles = StyleSheet.create({
 	content: {
 		flex: 1,
 	},
-	headerOuter: {
-		paddingHorizontal: 12,
-		paddingTop: 8,
-	},
-	headerGlass: {
-		borderWidth: 0,
-	},
 	header: {
-		flexDirection: 'row',
-		alignItems: 'center',
-		justifyContent: 'space-between',
-		paddingHorizontal: 16,
-		paddingVertical: 10,
+		paddingHorizontal: 20,
+		paddingTop: 12,
+		paddingBottom: 14,
+		borderBottomWidth: 2,
 	},
 	headerTitle: {
-		fontSize: 28,
-		fontWeight: '700',
-		letterSpacing: -0.5,
+		fontSize: 30,
+		fontWeight: '800',
+		letterSpacing: -0.6,
+	},
+	headerSubtitle: {
+		fontSize: 13,
+		fontWeight: '600',
+		marginTop: 2,
 	},
 	mainContent: {
 		flex: 1,
@@ -401,7 +397,8 @@ const styles = StyleSheet.create({
 		position: 'absolute',
 		right: 20,
 		bottom: 20,
-		borderRadius: 16,
+		borderRadius: 18,
+		elevation: 6,
 	},
 	comingSoonContainer: {
 		flex: 1,
@@ -419,7 +416,7 @@ const styles = StyleSheet.create({
 	},
 	comingSoonTitle: {
 		fontSize: 24,
-		fontWeight: '700',
+		fontWeight: '800',
 		marginBottom: 8,
 	},
 	comingSoonMessage: {

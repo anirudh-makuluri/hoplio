@@ -6,6 +6,7 @@ import { ChatDate, ChatMessage } from '~/lib/types';
 import { deleteMessage, editMessage, addReaction, saveMessage } from '~/redux/socketSlice';
 import { useAppDispatch } from '~/redux/store';
 import { useTheme } from '~/lib/themeContext';
+import { hapticSelection } from '~/lib/haptics';
 
 const COMMON_EMOJIS = ['\u{1F44D}', '\u{2764}\u{FE0F}', '\u{1F602}', '\u{1F62E}', '\u{1F622}', '\u{1F64F}', '\u{1F389}', '\u{1F525}'];
 
@@ -43,7 +44,10 @@ export default function ChatBubble({
 	const isAIMessage = chatMessage.isAIMessage || chatMessage.userUid === 'ai-assistant';
 	const time = new Date(chatMessage.time).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', hour12: true });
 
-	const openMenu = () => setMenuVisible(true);
+	const openMenu = () => {
+		void hapticSelection();
+		setMenuVisible(true);
+	};
 	const closeMenu = () => setMenuVisible(false);
 
 	const handleEditPress = () => {
@@ -118,8 +122,8 @@ export default function ChatBubble({
 	const getBubbleStyle = () => {
 		if (isSelf) {
 			return {
-				backgroundColor: colors.primary,
-				borderTopRightRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
+				backgroundColor: colors.bubbleSelf,
+				borderTopRightRadius: chatMessage.isConsecutiveMessage ? 18 : 6,
 				borderTopLeftRadius: 18,
 				borderBottomLeftRadius: 18,
 				borderBottomRightRadius: 18,
@@ -127,19 +131,19 @@ export default function ChatBubble({
 		}
 		if (isAIMessage) {
 			return {
-				backgroundColor: isDark ? 'rgba(99, 102, 241, 0.2)' : '#eef2ff',
+				backgroundColor: colors.bubbleAI,
 				borderTopRightRadius: 18,
-				borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
+				borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 6,
 				borderBottomLeftRadius: 18,
 				borderBottomRightRadius: 18,
-				borderWidth: 1,
-				borderColor: isDark ? 'rgba(99, 102, 241, 0.3)' : '#c7d2fe',
+				borderWidth: 2,
+				borderColor: colors.ai,
 			};
 		}
 		return {
-			backgroundColor: isDark ? 'rgba(255,255,255,0.1)' : '#f1f5f9',
+			backgroundColor: colors.bubbleOther,
 			borderTopRightRadius: 18,
-			borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 4,
+			borderTopLeftRadius: chatMessage.isConsecutiveMessage ? 18 : 6,
 			borderBottomLeftRadius: 18,
 			borderBottomRightRadius: 18,
 		};
@@ -153,7 +157,7 @@ export default function ChatBubble({
 						size={32}
 						source={{
 							uri: isAIMessage
-								? 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff'
+								? 'https://ui-avatars.com/api/?name=AI&background=CE82FF&color=ffffff'
 								: chatMessage.userPhoto,
 						}}
 						style={styles.avatar}
@@ -164,11 +168,11 @@ export default function ChatBubble({
 				<View style={[styles.bubbleContainer, { maxWidth: '75%' }]}>
 					{!isSelf && !chatMessage.isConsecutiveMessage && (isGroup || isAIMessage) && (
 						<View style={styles.senderRow}>
-							<Text style={[styles.senderName, { color: isAIMessage ? '#6366f1' : colors.textSecondary }]}>
+							<Text style={[styles.senderName, { color: isAIMessage ? colors.ai : colors.textSecondary }]}>
 								{isAIMessage ? 'Hoplio AI' : chatMessage.userName}
 							</Text>
 							{isAIMessage && (
-								<View style={[styles.aiBadge, { backgroundColor: '#6366f1' }]}>
+								<View style={[styles.aiBadge, { backgroundColor: colors.ai }]}>
 									<Text style={styles.aiBadgeText}>AI</Text>
 								</View>
 							)}
@@ -270,7 +274,12 @@ export default function ChatBubble({
 							<Menu.Item onPress={handleEditPress} title="Edit" leadingIcon="pencil" />
 						)}
 						{isSelf && !isAIMessage && (
-							<Menu.Item onPress={handleDeletePress} title="Delete" leadingIcon="delete" titleStyle={{ color: '#ef4444' }} />
+							<Menu.Item
+								onPress={handleDeletePress}
+								title="Delete"
+								leadingIcon="delete"
+								titleStyle={{ color: colors.destructive }}
+							/>
 						)}
 					</Menu>
 
@@ -279,25 +288,31 @@ export default function ChatBubble({
 							{chatMessage.reactions.map((reaction, index) => {
 								const hasUserReacted = reaction.reactors.some((reactor) => reactor.uid === user?.uid);
 								return (
-									<Pressable key={index} onPress={() => handleEmojiSelect(reaction.id)}>
+									<Pressable
+										key={index}
+										onPress={() => {
+											void hapticSelection();
+											handleEmojiSelect(reaction.id);
+										}}
+									>
 										<View
 											style={[
 												styles.reactionChip,
 												{
 													backgroundColor: hasUserReacted
 														? isDark
-															? 'rgba(59, 130, 246, 0.3)'
-															: '#dbeafe'
-														: isDark
-															? 'rgba(255,255,255,0.1)'
-															: '#f1f5f9',
-													borderColor: hasUserReacted ? colors.primary : 'transparent',
-													borderWidth: hasUserReacted ? 1 : 0,
+															? 'rgba(88, 204, 2, 0.25)'
+															: '#D7FFB8'
+														: colors.muted,
+													borderColor: hasUserReacted ? colors.primary : colors.border,
+													borderWidth: 2,
 												},
 											]}
 										>
 											<Text style={styles.reactionEmoji}>{reaction.id}</Text>
-											<Text style={[styles.reactionCount, { color: colors.text }]}>{reaction.reactors.length}</Text>
+											<Text style={[styles.reactionCount, { color: colors.text }]}>
+												{reaction.reactors.length}
+											</Text>
 										</View>
 									</Pressable>
 								);
@@ -332,7 +347,7 @@ export default function ChatBubble({
 						<Button onPress={() => setDeleteDialogVisible(false)} textColor={colors.textSecondary}>
 							Cancel
 						</Button>
-						<Button onPress={confirmDelete} textColor="#ef4444">
+						<Button onPress={confirmDelete} textColor={colors.destructive}>
 							Delete
 						</Button>
 					</Dialog.Actions>
@@ -343,8 +358,14 @@ export default function ChatBubble({
 					<Dialog.Content>
 						<View style={styles.emojiGrid}>
 							{COMMON_EMOJIS.map((emoji) => (
-								<Pressable key={emoji} onPress={() => handleEmojiSelect(emoji)}>
-									<View style={[styles.emojiButton, { backgroundColor: isDark ? colors.muted : '#f1f5f9' }]}>
+								<Pressable
+									key={emoji}
+									onPress={() => {
+										void hapticSelection();
+										handleEmojiSelect(emoji);
+									}}
+								>
+									<View style={[styles.emojiButton, { backgroundColor: colors.muted }]}>
 										<Text style={styles.emoji}>{emoji}</Text>
 									</View>
 								</Pressable>

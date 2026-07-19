@@ -1,8 +1,9 @@
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, StyleSheet } from 'react-native';
 import { Text, Icon, Badge } from 'react-native-paper';
 import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import GlassSurface from '~/components/GlassSurface';
+import PressableScale from '~/components/ui/PressableScale';
+import { hapticSelection } from '~/lib/haptics';
 
 type TabType = 'chats' | 'updates' | 'profile';
 
@@ -24,73 +25,87 @@ export default function BottomNavBar({
 
 	const tabs: { id: TabType; label: string; icon: string; activeIcon: string; badge?: number }[] = [
 		{ id: 'chats', label: 'Chats', icon: 'chat-outline', activeIcon: 'chat', badge: unreadCount },
-		{ id: 'updates', label: 'Friends', icon: 'account-multiple-outline', activeIcon: 'account-multiple', badge: pendingRequests },
+		{
+			id: 'updates',
+			label: 'Friends',
+			icon: 'account-multiple-outline',
+			activeIcon: 'account-multiple',
+			badge: pendingRequests,
+		},
 		{ id: 'profile', label: 'Profile', icon: 'account-outline', activeIcon: 'account' },
 	];
 
 	return (
-		<View style={[styles.outer, { paddingBottom: Math.max(insets.bottom, 8) }]}>
-			<GlassSurface intensity={26} rounded={24} style={[styles.glass, { borderColor: colors.border }]}>
-				<View style={styles.container}>
-					{tabs.map((tab) => {
-						const isActive = activeTab === tab.id;
-						return (
-							<TouchableOpacity
-								key={tab.id}
-								style={styles.tab}
-								onPress={() => onTabChange(tab.id)}
-								activeOpacity={0.7}
+		<View
+			style={[
+				styles.outer,
+				{
+					paddingBottom: Math.max(insets.bottom, 10),
+					backgroundColor: colors.surface,
+					borderTopColor: colors.border,
+				},
+			]}
+		>
+			<View style={styles.container}>
+				{tabs.map((tab) => {
+					const isActive = activeTab === tab.id;
+					return (
+						<PressableScale
+							key={tab.id}
+							style={styles.tab}
+							haptic="none"
+							scaleTo={0.94}
+							onPress={() => {
+								void hapticSelection();
+								onTabChange(tab.id);
+							}}
+						>
+							<View
+								style={[
+									styles.iconPill,
+									isActive && {
+										backgroundColor: isDark ? 'rgba(88, 204, 2, 0.18)' : '#D7FFB8',
+									},
+								]}
 							>
-								<View style={styles.iconContainer}>
-									<Icon
-										source={isActive ? tab.activeIcon : tab.icon}
-										size={26}
-										color={isActive ? colors.primary : colors.textSecondary}
-									/>
-									{tab.badge && tab.badge > 0 ? (
-										<Badge
-											size={18}
-											style={[
-												styles.badge,
-												{ backgroundColor: colors.primary },
-											]}
-										>
-											{tab.badge > 99 ? '99+' : tab.badge}
-										</Badge>
-									) : null}
-								</View>
-								<Text
-									style={[
-										styles.label,
-										{
-											color: isActive ? colors.primary : colors.textSecondary,
-											fontWeight: isActive ? '600' : '400',
-										},
-									]}
-								>
-									{tab.label}
-								</Text>
-							</TouchableOpacity>
-						);
-					})}
-				</View>
-			</GlassSurface>
+								<Icon
+									source={isActive ? tab.activeIcon : tab.icon}
+									size={24}
+									color={isActive ? colors.primaryDark : colors.textSecondary}
+								/>
+								{tab.badge && tab.badge > 0 ? (
+									<Badge size={18} style={[styles.badge, { backgroundColor: colors.destructive }]}>
+										{tab.badge > 99 ? '99+' : tab.badge}
+									</Badge>
+								) : null}
+							</View>
+							<Text
+								style={[
+									styles.label,
+									{
+										color: isActive ? colors.primaryDark : colors.textSecondary,
+										fontWeight: isActive ? '800' : '600',
+									},
+								]}
+							>
+								{tab.label}
+							</Text>
+						</PressableScale>
+					);
+				})}
+			</View>
 		</View>
 	);
 }
 
 const styles = StyleSheet.create({
 	outer: {
-		paddingHorizontal: 12,
 		paddingTop: 8,
-	},
-	glass: {
-		borderWidth: 1,
+		borderTopWidth: 2,
 	},
 	container: {
 		flexDirection: 'row',
-		paddingTop: 10,
-		paddingBottom: 10,
+		paddingHorizontal: 8,
 	},
 	tab: {
 		flex: 1,
@@ -98,14 +113,17 @@ const styles = StyleSheet.create({
 		justifyContent: 'center',
 		paddingVertical: 4,
 	},
-	iconContainer: {
+	iconPill: {
 		position: 'relative',
+		paddingHorizontal: 16,
+		paddingVertical: 6,
+		borderRadius: 16,
 		marginBottom: 2,
 	},
 	badge: {
 		position: 'absolute',
-		top: -6,
-		right: -10,
+		top: -4,
+		right: -2,
 	},
 	label: {
 		fontSize: 11,

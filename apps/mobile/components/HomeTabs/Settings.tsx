@@ -1,18 +1,28 @@
-import React, { useState } from 'react'
-import { View, Alert } from 'react-native';
-import { Avatar, Button, Text, Card, IconButton, TextInput, ActivityIndicator, Switch, List } from 'react-native-paper'
-import { SafeAreaView } from 'react-native-safe-area-context'
-import { useUser } from '~/app/providers'
+import React, { useState } from 'react';
+import { View, Alert, StyleSheet, ScrollView } from 'react-native';
+import {
+	Avatar,
+	Text,
+	IconButton,
+	TextInput,
+	ActivityIndicator,
+	Switch,
+	List,
+} from 'react-native-paper';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useUser } from '~/app/providers';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
 import { getErrorMessage, updateUserName, updateUserProfilePicture, uploadProfilePicture } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import * as ImagePicker from 'expo-image-picker';
 import { clearRoomData } from '~/redux/chatSlice';
+import { AppButton, AppCard } from '~/components/ui';
+import { hapticLight, hapticSelection, hapticSuccess, hapticError } from '~/lib/haptics';
 
 export default function Settings() {
 	const { user, updateUser, logout, isLoggingOut } = useUser();
 	const { isDark, toggleTheme, colors } = useAppTheme();
-	const socket = useAppSelector(state => state.socket.socket);
+	const socket = useAppSelector((state) => state.socket.socket);
 	const dispatch = useAppDispatch();
 
 	const [isEditingName, setIsEditingName] = useState(false);
@@ -26,14 +36,17 @@ export default function Settings() {
 			await updateUserName(socket, user.uid, newName.trim());
 			updateUser({ name: newName.trim() });
 			setIsEditingName(false);
+			void hapticSuccess();
 			Alert.alert('Success', 'Name updated successfully');
 		} catch (error) {
+			void hapticError();
 			Alert.alert('Error', getErrorMessage(error, 'Failed to update name'));
 		}
 	};
 
 	const handleImagePicker = async () => {
 		if (!user) return;
+		void hapticLight();
 
 		try {
 			const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -51,17 +64,15 @@ export default function Settings() {
 
 			if (!result.canceled && result.assets[0]) {
 				setIsUploading(true);
-				
-				// Upload the image
+
 				const downloadUrl = await uploadProfilePicture(user.uid, result.assets[0].uri);
-				
-				// Update user profile picture
 				await updateUserProfilePicture(socket, user.uid, downloadUrl);
 				updateUser({ photo_url: downloadUrl });
-				
+				void hapticSuccess();
 				Alert.alert('Success', 'Profile picture updated successfully');
 			}
 		} catch (error) {
+			void hapticError();
 			Alert.alert('Error', getErrorMessage(error, 'Failed to update profile picture'));
 		} finally {
 			setIsUploading(false);
@@ -69,56 +80,51 @@ export default function Settings() {
 	};
 
 	const handleLogout = () => {
+		void hapticLight();
 		dispatch(clearRoomData());
 		logout();
 	};
 
 	return (
-		<SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
-			<View className='px-6 py-8'>
+		<SafeAreaView style={[styles.root, { backgroundColor: colors.background }]} edges={['left', 'right']}>
+			<ScrollView contentContainerStyle={styles.scroll}>
 				{user && (
-					<View className='flex flex-col items-center gap-6 mb-8'>
-						<View className="relative">
-							<Avatar.Image 
-								size={120} 
+					<View style={styles.profileBlock}>
+						<View style={styles.avatarWrap}>
+							<Avatar.Image
+								size={120}
 								source={{ uri: user.photo_url }}
-								style={{ borderWidth: 4, borderColor: colors.border }}
+								style={{ borderWidth: 4, borderColor: colors.primary }}
 							/>
 							<IconButton
 								icon="image-edit-outline"
 								size={20}
 								onPress={handleImagePicker}
 								disabled={isUploading}
-								iconColor={colors.primary}
-								style={{
-									position: 'absolute',
-									bottom: 0,
-									right: 0,
-									backgroundColor: colors.surface,
-								}}
+								iconColor={colors.primaryForeground}
+								style={[styles.editPhotoBtn, { backgroundColor: colors.primary }]}
 							/>
 							{isUploading && (
-								<View className="absolute inset-0 bg-black bg-opacity-50 rounded-full items-center justify-center">
-									<ActivityIndicator size="small" color="white" />
+								<View style={styles.uploadOverlay}>
+									<ActivityIndicator size="small" color="#fff" />
 								</View>
 							)}
 						</View>
-						
-						<View className="items-center">
+
+						<View style={styles.nameBlock}>
 							{isEditingName ? (
-								<View className="flex-row items-center gap-2">
+								<View style={styles.editRow}>
 									<TextInput
 										value={newName}
 										onChangeText={setNewName}
-										style={{ width: 200 }}
+										style={styles.nameInput}
 										mode="outlined"
 										placeholder="Enter new name"
+										outlineColor={colors.border}
+										activeOutlineColor={colors.primary}
+										textColor={colors.text}
 									/>
-									<IconButton
-										icon="check"
-										onPress={handleNameUpdate}
-										iconColor={colors.primary}
-									/>
+									<IconButton icon="check" onPress={handleNameUpdate} iconColor={colors.primary} />
 									<IconButton
 										icon="close"
 										onPress={() => {
@@ -129,84 +135,123 @@ export default function Settings() {
 									/>
 								</View>
 							) : (
-								<View className="flex-row items-center gap-2">
-									<Text variant='headlineMedium' style={{ color: colors.text, fontWeight: 'bold' }}>
-										{user.name}
-									</Text>
+								<View style={styles.nameRow}>
+									<Text style={[styles.name, { color: colors.text }]}>{user.name}</Text>
 									<IconButton
 										icon="pencil"
 										size={20}
-										onPress={() => setIsEditingName(true)}
+										onPress={() => {
+											void hapticLight();
+											setIsEditingName(true);
+										}}
+										iconColor={colors.primaryDark}
 									/>
 								</View>
 							)}
-							<Text variant='bodyLarge' style={{ color: colors.textSecondary }}>
-								{user.email}
-							</Text>
+							<Text style={[styles.email, { color: colors.textSecondary }]}>{user.email}</Text>
 						</View>
 					</View>
 				)}
 
-				{/* Dark Mode Toggle */}
-				<Card
-					style={{
-						marginTop: 24,
-						backgroundColor: colors.surface,
-						borderRadius: 16,
-						borderWidth: 1,
-						borderColor: colors.border,
-					}}
-				>
-					<Card.Content>
-						<Text
-							variant="titleMedium"
-							style={{
-								color: colors.text,
-								marginBottom: 16,
-								fontWeight: '600',
-							}}
-						>
-							Appearance
-						</Text>
-						<List.Item
-							title="Dark Mode"
-							titleStyle={{ color: colors.text, fontWeight: '500' }}
-							description={isDark ? 'Dark theme is enabled' : 'Light theme is enabled'}
-							descriptionStyle={{ color: colors.textSecondary }}
-							left={(props) => (
-								<List.Icon {...props} icon="theme-light-dark" color={colors.primary} />
-							)}
-							right={() => (
-								<Switch
-									value={isDark}
-									onValueChange={toggleTheme}
-									color={colors.primary}
-								/>
-							)}
-						/>
-					</Card.Content>
-				</Card>
+				<AppCard style={styles.card}>
+					<Text style={[styles.cardTitle, { color: colors.text }]}>Appearance</Text>
+					<List.Item
+						title="Dark Mode"
+						titleStyle={{ color: colors.text, fontWeight: '700' }}
+						description={isDark ? 'Dark theme is enabled' : 'Light theme is enabled'}
+						descriptionStyle={{ color: colors.textSecondary }}
+						left={(props) => <List.Icon {...props} icon="theme-light-dark" color={colors.primary} />}
+						right={() => (
+							<Switch
+								value={isDark}
+								onValueChange={() => {
+									void hapticSelection();
+									toggleTheme();
+								}}
+								color={colors.primary}
+							/>
+						)}
+					/>
+				</AppCard>
 
-				<Button
-					mode="contained-tonal"
+				<AppButton
+					variant="secondary"
 					icon="logout"
 					onPress={handleLogout}
 					loading={isLoggingOut}
 					disabled={isLoggingOut}
-					textColor={colors.destructive}
-					style={{
-						marginTop: 20,
-						borderRadius: 14,
-						backgroundColor: colors.surface,
-						borderWidth: 1,
-						borderColor: colors.border,
-					}}
-					contentStyle={{ paddingVertical: 8 }}
+					fullWidth
+					style={styles.logout}
 				>
 					{isLoggingOut ? 'Logging out...' : 'Logout'}
-				</Button>
-			</View>
+				</AppButton>
+			</ScrollView>
 		</SafeAreaView>
-	)
+	);
 }
 
+const styles = StyleSheet.create({
+	root: {
+		flex: 1,
+	},
+	scroll: {
+		paddingHorizontal: 20,
+		paddingVertical: 24,
+	},
+	profileBlock: {
+		alignItems: 'center',
+		marginBottom: 28,
+		gap: 16,
+	},
+	avatarWrap: {
+		position: 'relative',
+	},
+	editPhotoBtn: {
+		position: 'absolute',
+		bottom: 0,
+		right: 0,
+	},
+	uploadOverlay: {
+		...StyleSheet.absoluteFillObject,
+		backgroundColor: 'rgba(0,0,0,0.45)',
+		borderRadius: 60,
+		alignItems: 'center',
+		justifyContent: 'center',
+	},
+	nameBlock: {
+		alignItems: 'center',
+	},
+	editRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+	},
+	nameInput: {
+		width: 200,
+	},
+	nameRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 4,
+	},
+	name: {
+		fontSize: 26,
+		fontWeight: '800',
+	},
+	email: {
+		fontSize: 15,
+		fontWeight: '600',
+		marginTop: 4,
+	},
+	card: {
+		marginBottom: 16,
+	},
+	cardTitle: {
+		fontSize: 16,
+		fontWeight: '800',
+		marginBottom: 4,
+	},
+	logout: {
+		marginTop: 8,
+	},
+});

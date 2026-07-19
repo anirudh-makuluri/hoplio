@@ -1,7 +1,7 @@
 import React from 'react';
-import { View, ScrollView, TouchableOpacity, StyleSheet } from 'react-native';
-import { Text } from 'react-native-paper';
+import { View, ScrollView, StyleSheet } from 'react-native';
 import { useTheme } from '~/lib/themeContext';
+import { AppChip } from '~/components/ui';
 
 export type FilterType = 'all' | 'groups';
 
@@ -11,7 +11,7 @@ interface FilterTabsProps {
 }
 
 export default function FilterTabs({ activeFilter, onFilterChange }: FilterTabsProps) {
-	const { colors, isDark } = useTheme();
+	const { colors } = useTheme();
 
 	const filters: { id: FilterType; label: string }[] = [
 		{ id: 'all', label: 'All' },
@@ -25,39 +25,15 @@ export default function FilterTabs({ activeFilter, onFilterChange }: FilterTabsP
 				showsHorizontalScrollIndicator={false}
 				contentContainerStyle={styles.scrollContent}
 			>
-				{filters.map((filter) => {
-					const isActive = activeFilter === filter.id;
-					return (
-						<TouchableOpacity
-							key={filter.id}
-							style={[
-								styles.tab,
-								{
-									backgroundColor: isActive
-										? colors.primary
-										: isDark
-											? 'rgba(255,255,255,0.08)'
-											: 'rgba(0,0,0,0.05)',
-									borderColor: isActive ? colors.primary : 'transparent',
-								},
-							]}
-							onPress={() => onFilterChange(filter.id)}
-							activeOpacity={0.7}
-						>
-							<Text
-								style={[
-									styles.tabText,
-									{
-										color: isActive ? '#fff' : colors.text,
-										fontWeight: isActive ? '600' : '400',
-									},
-								]}
-							>
-								{filter.label}
-							</Text>
-						</TouchableOpacity>
-					);
-				})}
+				{filters.map((filter) => (
+					<AppChip
+						key={filter.id}
+						active={activeFilter === filter.id}
+						onPress={() => onFilterChange(filter.id)}
+					>
+						{filter.label}
+					</AppChip>
+				))}
 			</ScrollView>
 		</View>
 	);
@@ -66,19 +42,10 @@ export default function FilterTabs({ activeFilter, onFilterChange }: FilterTabsP
 const styles = StyleSheet.create({
 	container: {
 		paddingVertical: 12,
-		borderBottomWidth: 1,
+		borderBottomWidth: 2,
 	},
 	scrollContent: {
 		paddingHorizontal: 16,
 		gap: 8,
-	},
-	tab: {
-		paddingHorizontal: 16,
-		paddingVertical: 8,
-		borderRadius: 20,
-		borderWidth: 1,
-	},
-	tabText: {
-		fontSize: 14,
 	},
 });

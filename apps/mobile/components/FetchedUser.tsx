@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Avatar, Button, Snackbar, Text } from 'react-native-paper';
+import { Avatar, Snackbar, Text } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { TUser } from '~/lib/types';
 import { getErrorMessage } from '~/lib/utils';
 import { useAppSelector } from '~/redux/store';
 import { useTheme } from '~/lib/themeContext';
+import { AppButton } from '~/components/ui';
+import { hapticMedium, hapticSuccess, hapticError } from '~/lib/haptics';
 
 export default function FetchedUser({
 	fetchedUser,
@@ -21,11 +23,18 @@ export default function FetchedUser({
 
 	function handleAddFriend() {
 		if (!user || !socket) return;
+		void hapticMedium();
 		socket.emit(
 			'send_friend_request_client_to_server',
 			{ receiverUid: fetchedUser.uid },
 			(res: any) => {
-				setSnackbarMsg(res.success || getErrorMessage(res?.error, 'Unable to send friend request'));
+				if (res.success) {
+					void hapticSuccess();
+					setSnackbarMsg(res.success);
+				} else {
+					void hapticError();
+					setSnackbarMsg(getErrorMessage(res?.error, 'Unable to send friend request'));
+				}
 				closeModal();
 			}
 		);
@@ -50,30 +59,16 @@ export default function FetchedUser({
 					/>
 					<View style={styles.info}>
 						<Text style={[styles.name, { color: colors.text }]}>{fetchedUser.name}</Text>
-						<Text style={[styles.email, { color: colors.textSecondary }]}>
-							{fetchedUser.email}
-						</Text>
+						<Text style={[styles.email, { color: colors.textSecondary }]}>{fetchedUser.email}</Text>
 						<View style={styles.badgeRow}>
-							<View
-								style={[
-									styles.dot,
-									{ backgroundColor: colors.primary },
-								]}
-							/>
-							<Text style={[styles.badgeText, { color: colors.primary }]}>
-								Available to add
-							</Text>
+							<View style={[styles.dot, { backgroundColor: colors.primary }]} />
+							<Text style={[styles.badgeText, { color: colors.primaryDark }]}>Available to add</Text>
 						</View>
 					</View>
 				</View>
-				<Button
-					mode="contained"
-					onPress={handleAddFriend}
-					style={[styles.addBtn, { backgroundColor: colors.primary }]}
-					compact
-				>
-					Add Friend
-				</Button>
+				<AppButton onPress={handleAddFriend} compact>
+					Add
+				</AppButton>
 			</View>
 			<Snackbar
 				visible={snackbarMsg.length > 0}
@@ -89,10 +84,10 @@ export default function FetchedUser({
 
 const styles = StyleSheet.create({
 	card: {
-		borderRadius: 14,
+		borderRadius: 16,
 		padding: 16,
 		marginBottom: 12,
-		borderWidth: 1,
+		borderWidth: 2,
 	},
 	row: {
 		flexDirection: 'row',
@@ -109,7 +104,7 @@ const styles = StyleSheet.create({
 	},
 	name: {
 		fontSize: 16,
-		fontWeight: '600',
+		fontWeight: '700',
 	},
 	email: {
 		fontSize: 13,
@@ -128,10 +123,6 @@ const styles = StyleSheet.create({
 	},
 	badgeText: {
 		fontSize: 12,
-		fontWeight: '600',
-	},
-	addBtn: {
-		borderRadius: 12,
-		marginLeft: 12,
+		fontWeight: '700',
 	},
 });

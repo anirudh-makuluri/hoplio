@@ -1,11 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import { Alert, ScrollView, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import {
 	ActivityIndicator,
 	Avatar,
-	Button,
-	Card,
-	Chip,
 	Icon,
 	IconButton,
 	Modal,
@@ -30,6 +27,8 @@ import {
 } from '~/lib/groupService';
 import { setActiveRoomId } from '~/redux/chatSlice';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
+import { AppButton, AppCard, AppChip, PressableScale } from '~/components/ui';
+import { hapticError, hapticLight, hapticSelection, hapticSuccess, hapticWarning } from '~/lib/haptics';
 
 interface GroupChatProps {
 	roomId?: string;
@@ -104,8 +103,10 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 	};
 
 	const pickGroupPhoto = async () => {
+		void hapticLight();
 		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
 		if (status !== 'granted') {
+			void hapticWarning();
 			Alert.alert('Permission needed', 'Please grant photo library access');
 			return;
 		}
@@ -124,16 +125,19 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 
 	const handleCreateGroup = async () => {
 		if (!user) {
+			void hapticError();
 			Alert.alert('Error', 'User not found');
 			return;
 		}
 
 		if (!groupName.trim()) {
+			void hapticWarning();
 			Alert.alert('Error', 'Please enter a group name');
 			return;
 		}
 
 		if (selectedMembers.length === 0) {
+			void hapticWarning();
 			Alert.alert('Error', 'Please select at least one member');
 			return;
 		}
@@ -154,6 +158,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 			}
 
 			updateUser({ rooms: [...(user.rooms || []), response.room] });
+			void hapticSuccess();
 
 			Alert.alert('Success', 'Group created successfully!', [
 				{
@@ -166,6 +171,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 				},
 			]);
 		} catch (error) {
+			void hapticError();
 			Alert.alert('Error', getErrorMessage(error, 'Failed to create group'));
 		} finally {
 			setIsCreating(false);
@@ -174,11 +180,13 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 
 	const handleUpdateGroup = async () => {
 		if (!user || !roomId) {
+			void hapticError();
 			Alert.alert('Error', 'User not found');
 			return;
 		}
 
 		if (!groupName.trim()) {
+			void hapticWarning();
 			Alert.alert('Error', 'Please enter a group name');
 			return;
 		}
@@ -210,7 +218,9 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 			);
 
 			Alert.alert('Success', 'Group updated successfully!');
+			void hapticSuccess();
 		} catch (error) {
+			void hapticError();
 			Alert.alert('Error', getErrorMessage(error, 'Failed to update group'));
 		} finally {
 			setIsUpdating(false);
@@ -240,16 +250,19 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 			);
 
 			Alert.alert('Success', 'Members added successfully!');
+			void hapticSuccess();
 			setSelectedMembers([]);
 			setSearchQuery('');
 			setShowMemberSearch(false);
 		} catch (error) {
+			void hapticError();
 			Alert.alert('Error', getErrorMessage(error, 'Failed to add members'));
 		}
 	};
 
 	const handleRemoveMember = async (memberUid: string) => {
 		if (!user || !roomId) {
+			void hapticError();
 			Alert.alert('Error', 'User not found');
 			return;
 		}
@@ -260,6 +273,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 				text: 'Remove',
 				style: 'destructive',
 				onPress: async () => {
+					void hapticWarning();
 					try {
 						const response = (await dispatch(removeMemberFromGroupService(user, roomId, memberUid))) as any;
 						if (!response?.success) {
@@ -278,7 +292,9 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 						);
 
 						Alert.alert('Success', 'Member removed successfully!');
+						void hapticSuccess();
 					} catch (error) {
+						void hapticError();
 						Alert.alert('Error', getErrorMessage(error, 'Failed to remove member'));
 					}
 				},
@@ -288,6 +304,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 
 	const handleDeleteGroup = async () => {
 		if (!user || !roomId) {
+			void hapticError();
 			Alert.alert('Error', 'User not found');
 			return;
 		}
@@ -298,6 +315,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 				text: 'Delete',
 				style: 'destructive',
 				onPress: async () => {
+					void hapticWarning();
 					try {
 						router.back();
 						const response = (await dispatch(deleteGroupService(user, roomId))) as any;
@@ -316,6 +334,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 							},
 						]);
 					} catch (error) {
+						void hapticError();
 						Alert.alert('Error', getErrorMessage(error, 'Failed to delete group'));
 					}
 				},
@@ -324,6 +343,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 	};
 
 	const toggleMemberSelection = (uid: string) => {
+		void hapticSelection();
 		setSelectedMembers((previous) =>
 			previous.includes(uid) ? previous.filter((id) => id !== uid) : [...previous, uid]
 		);
@@ -334,33 +354,18 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 			<Modal
 				visible
 				onDismiss={onClose}
-				contentContainerStyle={{
-					backgroundColor: colors.surface,
-					margin: 20,
-					borderRadius: 16,
-					maxHeight: '90%',
-					flex: 1,
-				}}
+				contentContainerStyle={[styles.modal, { backgroundColor: colors.surface, borderColor: colors.border }]}
 			>
 				<SafeAreaView style={{ flex: 1 }}>
-					<View
-						style={{
-							flexDirection: 'row',
-							alignItems: 'center',
-							justifyContent: 'space-between',
-							padding: 16,
-							borderBottomWidth: 1,
-							borderBottomColor: colors.border,
-						}}
-					>
-						<Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text }}>
+					<View style={[styles.header, { borderBottomColor: colors.border }]}>
+						<Text style={[styles.title, { color: colors.text }]}>
 							{isEditMode ? 'Edit Group' : 'Create Group'}
 						</Text>
 						<IconButton icon="close" onPress={onClose} iconColor={colors.textSecondary} />
 					</View>
 
-					<ScrollView style={{ flex: 1, padding: 16 }} showsVerticalScrollIndicator={false}>
-						<View style={{ alignItems: 'center', marginBottom: 24 }}>
+					<ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+						<View style={styles.photoBlock}>
 							<View style={{ position: 'relative' }}>
 								<Avatar.Image
 									size={88}
@@ -381,13 +386,13 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 									</View>
 								)}
 							</View>
-							<Button mode="text" onPress={pickGroupPhoto} icon="image-edit-outline" style={{ marginTop: 8 }}>
+							<AppButton variant="ghost" compact onPress={pickGroupPhoto} icon="image-edit-outline" style={styles.photoButton}>
 								Change Photo
-							</Button>
+							</AppButton>
 						</View>
 
-						<View style={{ marginBottom: 24 }}>
-							<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text, marginBottom: 8 }}>
+						<View style={styles.section}>
+							<Text style={[styles.sectionTitle, { color: colors.text }]}>
 								Group Name
 							</Text>
 							<TextInput
@@ -396,41 +401,45 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 								placeholder="Enter group name"
 								mode="outlined"
 								disabled={isCreating || isUpdating}
+								outlineColor={colors.border}
+								activeOutlineColor={colors.primary}
+								textColor={colors.text}
+								style={{ backgroundColor: colors.surface }}
 							/>
 						</View>
 
 						{isEditMode ? (
-							<View style={{ marginBottom: 24 }}>
-								<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-									<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>
+							<View style={styles.section}>
+								<View style={styles.sectionHeader}>
+									<Text style={[styles.sectionTitle, { color: colors.text }]}>
 										Group Members ({groupMembers.length})
 									</Text>
-									<Button mode="outlined" onPress={() => setShowMemberSearch(true)} icon="account-plus" compact>
+									<AppButton variant="secondary" compact onPress={() => setShowMemberSearch(true)} icon="account-plus">
 										Add
-									</Button>
+									</AppButton>
 								</View>
 
 								<View style={{ gap: 8 }}>
 									{groupMembers.map((uid) => (
-										<Card key={uid} style={{ backgroundColor: colors.surface }}>
+										<AppCard key={uid} style={styles.memberCard} elevated={false}>
 											<View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
 												<Avatar.Image size={36} source={{ uri: getMemberPhoto(uid) }} />
 												<Text style={{ flex: 1, color: colors.text, marginLeft: 12 }}>{getMemberName(uid)}</Text>
 												<IconButton icon="close" size={18} onPress={() => handleRemoveMember(uid)} iconColor="#ef4444" />
 											</View>
-										</Card>
+										</AppCard>
 									))}
 								</View>
 							</View>
 						) : (
-							<View style={{ marginBottom: 24 }}>
-								<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-									<Text style={{ fontSize: 16, fontWeight: '600', color: colors.text }}>
+							<View style={styles.section}>
+								<View style={styles.sectionHeader}>
+									<Text style={[styles.sectionTitle, { color: colors.text }]}>
 										Selected Members ({selectedMembers.length})
 									</Text>
-									<Button mode="outlined" onPress={() => setShowMemberSearch(true)} icon="account-plus" compact>
+									<AppButton variant="secondary" compact onPress={() => setShowMemberSearch(true)} icon="account-plus">
 										Add
-									</Button>
+									</AppButton>
 								</View>
 
 								<View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
@@ -438,38 +447,34 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 										<Text style={{ color: colors.textSecondary }}>Choose at least one friend to start the group.</Text>
 									) : (
 										selectedMembers.map((uid) => (
-											<Chip
-												key={uid}
-												onClose={() => toggleMemberSelection(uid)}
-												avatar={<Avatar.Image size={24} source={{ uri: getMemberPhoto(uid) }} />}
-											>
+											<AppChip key={uid} active tone="primary" onPress={() => toggleMemberSelection(uid)}>
 												{getMemberName(uid)}
-											</Chip>
+											</AppChip>
 										))
 									)}
 								</View>
 							</View>
 						)}
 
-						<View style={{ gap: 12 }}>
+						<View style={styles.actions}>
 							{isEditMode ? (
 								<>
-									<Button mode="contained" onPress={handleUpdateGroup} loading={isUpdating} disabled={isUpdating || isUploadingPhoto}>
+									<AppButton fullWidth onPress={handleUpdateGroup} loading={isUpdating} disabled={isUpdating || isUploadingPhoto}>
 										Save Changes
-									</Button>
-									<Button mode="outlined" onPress={handleDeleteGroup} buttonColor="#fef2f2" textColor="#dc2626">
+									</AppButton>
+									<AppButton fullWidth variant="destructive" onPress={handleDeleteGroup}>
 										Delete Group
-									</Button>
+									</AppButton>
 								</>
 							) : (
-								<Button
-									mode="contained"
+								<AppButton
 									onPress={handleCreateGroup}
 									loading={isCreating}
 									disabled={isCreating || isUploadingPhoto || !groupName.trim() || selectedMembers.length === 0}
+									fullWidth
 								>
 									Create Group
-								</Button>
+								</AppButton>
 							)}
 						</View>
 					</ScrollView>
@@ -479,16 +484,11 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 					<Modal
 						visible={showMemberSearch}
 						onDismiss={() => setShowMemberSearch(false)}
-						contentContainerStyle={{
-							backgroundColor: colors.surface,
-							margin: 20,
-							borderRadius: 16,
-							maxHeight: '80%',
-						}}
+						contentContainerStyle={[styles.memberModal, { backgroundColor: colors.surface, borderColor: colors.border }]}
 					>
-						<View style={{ padding: 16 }}>
-							<View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-								<Text style={{ fontSize: 20, fontWeight: 'bold', color: colors.text }}>
+						<View style={styles.memberModalContent}>
+							<View style={styles.memberModalHeader}>
+								<Text style={[styles.title, { color: colors.text }]}>
 									{isEditMode ? 'Add Members' : 'Choose Members'}
 								</Text>
 								<IconButton icon="close" onPress={() => setShowMemberSearch(false)} iconColor={colors.textSecondary} />
@@ -498,7 +498,9 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 								placeholder="Search friends"
 								value={searchQuery}
 								onChangeText={setSearchQuery}
-								style={{ marginBottom: 16 }}
+								style={[styles.searchBar, { backgroundColor: colors.muted }]}
+								inputStyle={{ color: colors.text }}
+								placeholderTextColor={colors.textSecondary}
 							/>
 
 							<ScrollView showsVerticalScrollIndicator={false}>
@@ -511,12 +513,12 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 									</View>
 								) : (
 									filteredFriends.map((friend: TUser) => (
-										<Card
+										<PressableScale
 											key={friend.uid}
-											style={{ marginBottom: 8, backgroundColor: colors.surface }}
+											style={styles.searchResult}
 											onPress={() => toggleMemberSelection(friend.uid)}
 										>
-											<View style={{ flexDirection: 'row', alignItems: 'center', padding: 12 }}>
+											<View style={[styles.searchResultInner, { backgroundColor: colors.surface, borderColor: colors.border }]}>
 												<Avatar.Image size={40} source={{ uri: friend.photo_url }} />
 												<View style={{ flex: 1, marginLeft: 12 }}>
 													<Text style={{ fontSize: 16, fontWeight: '500', color: colors.text }}>{friend.name}</Text>
@@ -524,23 +526,22 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 												</View>
 												{selectedMembers.includes(friend.uid) && <Icon source="check-circle" size={24} color={colors.primary} />}
 											</View>
-										</Card>
+										</PressableScale>
 									))
 								)}
 							</ScrollView>
 
-							<View style={{ flexDirection: 'row', gap: 12, marginTop: 16 }}>
-								<Button mode="outlined" onPress={() => setShowMemberSearch(false)} style={{ flex: 1 }}>
+							<View style={styles.memberActions}>
+								<AppButton variant="secondary" onPress={() => setShowMemberSearch(false)} style={styles.memberAction}>
 									Cancel
-								</Button>
-								<Button
-									mode="contained"
+								</AppButton>
+								<AppButton
 									onPress={isEditMode ? handleAddMembers : () => setShowMemberSearch(false)}
 									disabled={selectedMembers.length === 0}
-									style={{ flex: 1 }}
+									style={styles.memberAction}
 								>
 									{isEditMode ? 'Add Members' : 'Done'}
-								</Button>
+								</AppButton>
 							</View>
 						</View>
 					</Modal>
@@ -549,3 +550,49 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 		</Portal>
 	);
 }
+
+const styles = StyleSheet.create({
+	modal: {
+		margin: 20,
+		borderRadius: 20,
+		borderWidth: 2,
+		maxHeight: '90%',
+		flex: 1,
+		overflow: 'hidden',
+	},
+	header: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		paddingHorizontal: 20,
+		paddingVertical: 12,
+		borderBottomWidth: 2,
+	},
+	title: { fontSize: 20, fontWeight: '800' },
+	content: { padding: 20, paddingBottom: 28 },
+	photoBlock: { alignItems: 'center', marginBottom: 24 },
+	photoButton: { marginTop: 8 },
+	section: { marginBottom: 24 },
+	sectionHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 12,
+	},
+	sectionTitle: { fontSize: 16, fontWeight: '800', marginBottom: 8 },
+	memberCard: { marginBottom: 8, padding: 0 },
+	actions: { gap: 12 },
+	memberModal: { margin: 20, borderRadius: 20, borderWidth: 2, maxHeight: '80%', overflow: 'hidden' },
+	memberModalContent: { padding: 20 },
+	memberModalHeader: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		marginBottom: 16,
+	},
+	searchBar: { marginBottom: 16, elevation: 0 },
+	searchResult: { marginBottom: 8 },
+	searchResultInner: { flexDirection: 'row', alignItems: 'center', padding: 12, borderWidth: 2, borderRadius: 16 },
+	memberActions: { flexDirection: 'row', gap: 12, marginTop: 16 },
+	memberAction: { flex: 1 },
+});

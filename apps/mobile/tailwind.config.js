@@ -13,31 +13,31 @@ module.exports = {
 		},
 		extend: {
 			colors: {
-				/* Blue theme - aligned with website globals.css */
-				border: "hsl(var(--border))",
-				input: "hsl(var(--input))",
-				ring: "hsl(var(--ring))",
-				background: "hsl(var(--background))",
-				foreground: "hsl(var(--foreground))",
+				/* Duolingo-inspired fun theme (mobile) */
+				border: "#E5E5E5",
+				input: "#E5E5E5",
+				ring: "#58CC02",
+				background: "#F7F7F7",
+				foreground: "#3C3C3C",
 				primary: {
-					DEFAULT: "#3b82f6",
+					DEFAULT: "#58CC02",
 					foreground: "#ffffff",
 				},
 				secondary: {
-					DEFAULT: "hsl(var(--secondary))",
-					foreground: "hsl(var(--secondary-foreground))",
+					DEFAULT: "#FFC800",
+					foreground: "#3C3C3C",
 				},
 				destructive: {
-					DEFAULT: "#ef4444",
+					DEFAULT: "#FF4B4B",
 					foreground: "#ffffff",
 				},
 				muted: {
-					DEFAULT: "#f1f5f9",
-					foreground: "#64748b",
+					DEFAULT: "#F0F0F0",
+					foreground: "#777777",
 				},
 				accent: {
-					DEFAULT: "#3b82f6",
-					foreground: "#ffffff",
+					DEFAULT: "#FFC800",
+					foreground: "#3C3C3C",
 				},
 				popover: {
 					DEFAULT: "hsl(var(--popover))",

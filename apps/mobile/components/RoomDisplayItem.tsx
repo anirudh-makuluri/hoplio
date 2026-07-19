@@ -1,11 +1,13 @@
 import { router } from 'expo-router';
-import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import { Avatar, Badge, Icon, Text } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { TRoomData } from '~/lib/types';
 import { useTheme } from '~/lib/themeContext';
 import { setActiveRoomId } from '~/redux/chatSlice';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
+import PressableScale from '~/components/ui/PressableScale';
+import { hapticLight } from '~/lib/haptics';
 
 export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 	const dispatch = useAppDispatch();
@@ -16,6 +18,7 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 
 	function changeActiveRoom() {
 		if (!user) return;
+		void hapticLight();
 		dispatch(setActiveRoomId(roomData.roomId));
 		router.push('/room');
 	}
@@ -89,26 +92,26 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 	const isAIRoom = roomData.is_ai_room || roomData.roomId.startsWith('ai-assistant-');
 
 	return (
-		<TouchableOpacity
+		<PressableScale
 			onPress={changeActiveRoom}
+			haptic="none"
 			style={[styles.container, { backgroundColor: colors.background }]}
-			activeOpacity={0.7}
 		>
 			<View style={styles.avatarContainer}>
 				<Avatar.Image
 					size={54}
 					source={{
 						uri: isAIRoom
-							? 'https://ui-avatars.com/api/?name=AI&background=6366f1&color=ffffff'
+							? `https://ui-avatars.com/api/?name=AI&background=CE82FF&color=ffffff`
 							: roomData.photo_url || `https://ui-avatars.com/api/?name=${roomData.name}`,
 					}}
 				/>
 				{isAIRoom ? (
-					<View style={[styles.badge, { backgroundColor: '#6366f1' }]}>
+					<View style={[styles.badge, { backgroundColor: colors.ai, borderColor: colors.background }]}>
 						<Text style={styles.badgeText}>AI</Text>
 					</View>
 				) : roomData.is_group ? (
-					<View style={[styles.badge, { backgroundColor: colors.primary }]}>
+					<View style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
 						<Icon source="account-multiple" size={12} color="#fff" />
 					</View>
 				) : null}
@@ -122,17 +125,26 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 					<Text style={[styles.time, { color: colors.textSecondary }]}>{getLastMessageTime()}</Text>
 				</View>
 				<View style={styles.bottomRow}>
-					<Text style={[styles.preview, { color: colors.textSecondary }]} numberOfLines={1}>
+					<Text
+						style={[
+							styles.preview,
+							{
+								color: unreadCount > 0 ? colors.text : colors.textSecondary,
+								fontWeight: unreadCount > 0 ? '700' : '400',
+							},
+						]}
+						numberOfLines={1}
+					>
 						{getLastMessage()}
 					</Text>
 					{unreadCount > 0 && (
-						<Badge size={20} style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
+						<Badge size={22} style={[styles.unreadBadge, { backgroundColor: colors.primary }]}>
 							{unreadCount > 99 ? '99+' : unreadCount}
 						</Badge>
 					)}
 				</View>
 			</View>
-		</TouchableOpacity>
+		</PressableScale>
 	);
 }
 
@@ -157,12 +169,11 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		borderWidth: 2,
-		borderColor: '#fff',
 	},
 	badgeText: {
 		color: '#fff',
 		fontSize: 9,
-		fontWeight: '700',
+		fontWeight: '800',
 	},
 	content: {
 		flex: 1,
@@ -175,12 +186,13 @@ const styles = StyleSheet.create({
 	},
 	name: {
 		fontSize: 16,
-		fontWeight: '600',
+		fontWeight: '700',
 		flex: 1,
 		marginRight: 8,
 	},
 	time: {
-		fontSize: 13,
+		fontSize: 12,
+		fontWeight: '600',
 	},
 	bottomRow: {
 		flexDirection: 'row',

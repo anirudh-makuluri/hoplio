@@ -38,12 +38,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import { formatLastSeen, uploadFile } from '~/lib/utils';
 import { useTheme as useAppTheme } from '~/lib/themeContext';
 import { useToast } from '~/components/Toast';
-import GlassSurface from '~/components/GlassSurface';
 import {
 	useE2EEError,
 	useEncryptRoomMessage,
 	useFetchRoomMemberPublicKeys,
 } from '~/lib/hooks/useE2EE';
+import { AppChip } from '~/components/ui';
+import { hapticLight, hapticMedium, hapticSuccess, hapticError, hapticSelection } from '~/lib/haptics';
 
 export default function Room() {
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
@@ -53,7 +54,7 @@ export default function Room() {
 	const textInputRef = useRef<any>(null);
 
 	const dispatch = useAppDispatch();
-	const { colors, isDark } = useAppTheme();
+	const { colors } = useAppTheme();
 	const { showToast } = useToast();
 	const e2eeError = useE2EEError();
 	const isAIRoom = activeRoom?.is_ai_room || activeChatRoomId.startsWith('ai-assistant-');
@@ -237,11 +238,13 @@ export default function Room() {
 				};
 
 				dispatch(sendMessageToServer(chatMessage));
+				void hapticSuccess();
 				setInput('');
 				setShowSmartReplies(false);
 				if (textInputRef.current) textInputRef.current.blur();
 			} catch (error) {
 				console.error('Failed to encrypt mobile message:', error);
+				void hapticError();
 				showToast({ message: 'Unable to encrypt this message right now.', type: 'error' });
 			} finally {
 				setEncryptionStatus('idle');
@@ -264,6 +267,7 @@ export default function Room() {
 		};
 
 		dispatch(sendMessageToServer(chatMessage));
+		void hapticMedium();
 		setInput('');
 		setShowSmartReplies(false);
 		if (textInputRef.current) textInputRef.current.blur();
@@ -396,57 +400,62 @@ export default function Room() {
 		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
 			<View style={[styles.content, { backgroundColor: colors.background }]}>
 				{/* Header */}
-				<View style={styles.headerOuter}>
-					<GlassSurface intensity={26} rounded={22} style={styles.headerGlass}>
-						<View style={styles.header}>
-							<TouchableOpacity onPress={handleBackButton} style={styles.backButton}>
-								<Icon source="chevron-left" size={28} color={colors.text} />
-							</TouchableOpacity>
+				<View style={[styles.headerOuter, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
+					<View style={styles.header}>
+						<TouchableOpacity
+							onPress={() => {
+								void hapticLight();
+								handleBackButton();
+							}}
+							style={styles.backButton}
+						>
+							<Icon source="chevron-left" size={28} color={colors.text} />
+						</TouchableOpacity>
 
-							<TouchableOpacity
-								style={styles.headerInfo}
-								onPress={() => activeRoom.is_group && setShowGroupMembers(true)}
-							>
-								<Avatar.Image size={44} source={{ uri: activeRoom?.photo_url }} />
-								<View style={styles.headerText}>
-									<View style={styles.headerTitleRow}>
-										<Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
-											{activeRoom.name}
-										</Text>
-										{userIsOffline && (
-											<View style={[styles.offlineBadge, { backgroundColor: colors.destructive }]}>
-												<Icon source="wifi-off" size={10} color="#fff" />
-											</View>
-										)}
-									</View>
-									<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
-										{activeRoom.is_group ? getMemberNames() : getUserPresence()}
+						<TouchableOpacity
+							style={styles.headerInfo}
+							onPress={() => activeRoom.is_group && setShowGroupMembers(true)}
+						>
+							<Avatar.Image size={44} source={{ uri: activeRoom?.photo_url }} />
+							<View style={styles.headerText}>
+								<View style={styles.headerTitleRow}>
+									<Text style={[styles.headerTitle, { color: colors.text }]} numberOfLines={1}>
+										{activeRoom.name}
 									</Text>
+									{userIsOffline && (
+										<View style={[styles.offlineBadge, { backgroundColor: colors.destructive }]}>
+											<Icon source="wifi-off" size={10} color="#fff" />
+										</View>
+									)}
 								</View>
-							</TouchableOpacity>
+								<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]} numberOfLines={1}>
+									{activeRoom.is_group ? getMemberNames() : getUserPresence()}
+								</Text>
+							</View>
+						</TouchableOpacity>
 
-							<View style={styles.headerActions}>
-								{e2eeError && (
+						<View style={styles.headerActions}>
+							{e2eeError && (
+								<IconButton
+									icon="refresh"
+									size={22}
+									iconColor={colors.warning}
+									onPress={handleRotateKeys}
+								/>
+							)}
+							<Menu
+								visible={moreMenuVisible}
+								onDismiss={() => setMoreMenuVisible(false)}
+								anchor={
 									<IconButton
-										icon="refresh"
+										icon="dots-vertical"
 										size={22}
-										iconColor="#f59e0b"
-										onPress={handleRotateKeys}
+										iconColor={colors.text}
+										onPress={() => setMoreMenuVisible(true)}
 									/>
-								)}
-								<Menu
-									visible={moreMenuVisible}
-									onDismiss={() => setMoreMenuVisible(false)}
-									anchor={
-										<IconButton
-											icon="dots-vertical"
-											size={22}
-											iconColor={colors.text}
-											onPress={() => setMoreMenuVisible(true)}
-										/>
-									}
-									contentStyle={[styles.menuContent, { backgroundColor: colors.surface }]}
-								>
+								}
+								contentStyle={[styles.menuContent, { backgroundColor: colors.surface }]}
+							>
 							{activeRoom.is_group && (
 								<>
 									<Menu.Item
@@ -497,9 +506,8 @@ export default function Room() {
 								</>
 							)}
 								</Menu>
-							</View>
 						</View>
-					</GlassSurface>
+					</View>
 				</View>
 
 				{/* Messages */}
@@ -530,16 +538,17 @@ export default function Room() {
 						{smartReplies.length > 0 ? (
 							<ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.smartRepliesScroll}>
 								{smartReplies.map((reply, index) => (
-									<TouchableOpacity
+									<AppChip
 										key={index}
-										style={[styles.smartReplyChip, { backgroundColor: isDark ? colors.muted : '#f1f5f9', borderColor: colors.border }]}
+										tone="ai"
 										onPress={() => {
+											void hapticSelection();
 											setInput(reply);
 											setShowSmartReplies(false);
 										}}
 									>
-										<Text style={[styles.smartReplyText, { color: colors.text }]}>{reply}</Text>
-									</TouchableOpacity>
+										{reply}
+									</AppChip>
 								))}
 							</ScrollView>
 						) : (
@@ -576,73 +585,82 @@ export default function Room() {
 
 				{/* Offline Indicator */}
 				{userIsOffline && (
-					<View style={[styles.offlineBar, { backgroundColor: colors.destructive }]}>
-						<Icon source="wifi-off" size={16} color="#fff" />
-						<Text style={styles.offlineText}>You're offline. Messages will sync when connected.</Text>
+					<View style={[styles.offlineBar, { backgroundColor: colors.warning }]}>
+						<Icon source="wifi-off" size={16} color={colors.accentForeground} />
+						<Text style={[styles.offlineText, { color: colors.accentForeground }]}>
+							You're offline. Messages will sync when connected.
+						</Text>
 					</View>
 				)}
 
 				{/* Input Bar */}
-				<View style={styles.inputOuter}>
-					<GlassSurface intensity={26} rounded={26} style={styles.inputGlass}>
-						<View style={styles.inputBar}>
-							<Menu
-								visible={attachMenuVisible}
-								onDismiss={() => setAttachMenuVisible(false)}
-								anchor={
-									<IconButton
-										icon="plus"
-										size={24}
-										iconColor={colors.primary}
-										style={[styles.attachButton, { backgroundColor: isDark ? 'rgba(255,255,255,0.10)' : 'rgba(2,6,23,0.06)' }]}
-										onPress={() => setAttachMenuVisible(true)}
-										disabled={uploading || userIsOffline}
-									/>
-								}
-								contentStyle={{ backgroundColor: colors.surface }}
-							>
-								<Menu.Item onPress={pickImage} title="Gallery" leadingIcon="image" />
-								<Menu.Item onPress={pickDocument} title="Document" leadingIcon="file" />
-							</Menu>
-
-							<View style={[styles.inputWrapper, { backgroundColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(2,6,23,0.05)' }]}>
-								<TextInput
-									ref={textInputRef}
-									value={input}
-									mode="flat"
-									onChangeText={(e) => {
-										setInput(e);
-										if (e.length > 0 && showSmartReplies) setShowSmartReplies(false);
+				<View style={[styles.inputOuter, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
+					<View style={styles.inputBar}>
+						<Menu
+							visible={attachMenuVisible}
+							onDismiss={() => setAttachMenuVisible(false)}
+							anchor={
+								<IconButton
+									icon="plus"
+									size={24}
+									iconColor={colors.primaryDark}
+									style={[styles.attachButton, { backgroundColor: colors.muted }]}
+									onPress={() => {
+										void hapticLight();
+										setAttachMenuVisible(true);
 									}}
-									placeholder="Type here"
-									style={styles.textInput}
-									disabled={uploading}
-									underlineColor="transparent"
-									activeUnderlineColor="transparent"
-									textColor={colors.text}
-									placeholderTextColor={colors.textSecondary}
+									disabled={uploading || userIsOffline}
 								/>
-								{!isAIRoom && memberPublicKeys && Object.keys(memberPublicKeys).length > 0 && (
-									<IconButton
-										icon={secureSendEnabled ? 'lock' : 'lock-open-variant-outline'}
-										size={20}
-										iconColor={secureSendEnabled ? colors.primary : colors.textSecondary}
-										onPress={() => setSecureSendEnabled((current) => !current)}
-										disabled={uploading || userIsOffline || fetchingMemberKeys}
-									/>
-								)}
-							</View>
+							}
+							contentStyle={{ backgroundColor: colors.surface }}
+						>
+							<Menu.Item onPress={pickImage} title="Gallery" leadingIcon="image" />
+							<Menu.Item onPress={pickDocument} title="Document" leadingIcon="file" />
+						</Menu>
 
-							<IconButton
-								icon={secureSendEnabled ? 'shield-lock-outline' : 'send'}
-								size={24}
-								iconColor="#fff"
-								style={[styles.sendButton, { backgroundColor: input.trim() ? colors.primary : colors.textSecondary }]}
-								onPress={sendMessage}
-								disabled={uploading || !input.trim() || encryptionStatus !== 'idle' || fetchingMemberKeys}
+						<View style={[styles.inputWrapper, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+							<TextInput
+								ref={textInputRef}
+								value={input}
+								mode="flat"
+								onChangeText={(e) => {
+									setInput(e);
+									if (e.length > 0 && showSmartReplies) setShowSmartReplies(false);
+								}}
+								placeholder="Type a message"
+								style={styles.textInput}
+								disabled={uploading}
+								underlineColor="transparent"
+								activeUnderlineColor="transparent"
+								textColor={colors.text}
+								placeholderTextColor={colors.textSecondary}
 							/>
+							{!isAIRoom && memberPublicKeys && Object.keys(memberPublicKeys).length > 0 && (
+								<IconButton
+									icon={secureSendEnabled ? 'lock' : 'lock-open-variant-outline'}
+									size={20}
+									iconColor={secureSendEnabled ? colors.primary : colors.textSecondary}
+									onPress={() => {
+										void hapticSelection();
+										setSecureSendEnabled((current) => !current);
+									}}
+									disabled={uploading || userIsOffline || fetchingMemberKeys}
+								/>
+							)}
 						</View>
-					</GlassSurface>
+
+						<IconButton
+							icon={secureSendEnabled ? 'shield-lock-outline' : 'send'}
+							size={24}
+							iconColor="#fff"
+							style={[
+								styles.sendButton,
+								{ backgroundColor: input.trim() ? colors.primary : colors.textSecondary },
+							]}
+							onPress={sendMessage}
+							disabled={uploading || !input.trim() || encryptionStatus !== 'idle' || fetchingMemberKeys}
+						/>
+					</View>
 				</View>
 			</View>
 
@@ -700,11 +718,7 @@ const styles = StyleSheet.create({
 	container: { flex: 1 },
 	content: { flex: 1 },
 	headerOuter: {
-		paddingHorizontal: 10,
-		paddingTop: 6,
-	},
-	headerGlass: {
-		borderWidth: 1,
+		borderBottomWidth: 2,
 	},
 	header: {
 		flexDirection: 'row',
@@ -731,7 +745,7 @@ const styles = StyleSheet.create({
 	},
 	headerTitle: {
 		fontSize: 17,
-		fontWeight: '600',
+		fontWeight: '800',
 	},
 	offlineBadge: {
 		marginLeft: 6,
@@ -742,6 +756,7 @@ const styles = StyleSheet.create({
 	headerSubtitle: {
 		fontSize: 13,
 		marginTop: 1,
+		fontWeight: '600',
 	},
 	headerActions: {
 		flexDirection: 'row',
@@ -803,16 +818,6 @@ const styles = StyleSheet.create({
 		paddingVertical: 8,
 		gap: 8,
 	},
-	smartReplyChip: {
-		paddingHorizontal: 14,
-		paddingVertical: 8,
-		borderRadius: 16,
-		borderWidth: 1,
-		marginRight: 8,
-	},
-	smartReplyText: {
-		fontSize: 14,
-	},
 	smartRepliesLoading: {
 		flexDirection: 'row',
 		alignItems: 'center',
@@ -843,34 +848,33 @@ const styles = StyleSheet.create({
 		gap: 8,
 	},
 	offlineText: {
-		color: '#fff',
 		fontSize: 13,
-		fontWeight: '500',
+		fontWeight: '700',
 	},
 	inputOuter: {
 		paddingHorizontal: 10,
 		paddingBottom: 10,
-	},
-	inputGlass: {
-		borderWidth: 1,
+		paddingTop: 8,
+		borderTopWidth: 2,
 	},
 	inputBar: {
 		flexDirection: 'row',
 		alignItems: 'center',
-		paddingHorizontal: 10,
-		paddingVertical: 10,
+		paddingHorizontal: 4,
+		paddingVertical: 4,
 		gap: 6,
 	},
 	attachButton: {
 		margin: 0,
-		borderRadius: 24,
+		borderRadius: 18,
 	},
 	inputWrapper: {
 		flex: 1,
 		flexDirection: 'row',
 		alignItems: 'center',
-		borderRadius: 24,
-		paddingLeft: 16,
+		borderRadius: 18,
+		borderWidth: 2,
+		paddingLeft: 12,
 	},
 	textInput: {
 		flex: 1,
@@ -880,7 +884,7 @@ const styles = StyleSheet.create({
 	},
 	sendButton: {
 		margin: 0,
-		borderRadius: 24,
+		borderRadius: 18,
 	},
 	memberItem: {
 		paddingVertical: 12,

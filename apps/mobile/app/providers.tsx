@@ -34,32 +34,50 @@ const UserContext = createContext<TUserContext>({
 	loginOffline: () => { }
 });
 
+/** Duolingo-inspired Paper MD3 mapping — keep in sync with themeContext */
 const lightPaperTheme = {
 	...MD3LightTheme,
+	roundness: 16,
 	colors: {
 		...MD3LightTheme.colors,
-		primary: '#3b82f6',
-		primaryContainer: '#dbeafe',
-		secondary: '#f1f5f9',
-		surface: '#ffffff',
-		surfaceVariant: '#f8fafc',
-		outline: '#e2e8f0',
+		primary: '#58CC02',
+		primaryContainer: '#D7FFB8',
+		onPrimary: '#FFFFFF',
+		onPrimaryContainer: '#46A302',
+		secondary: '#FFC800',
+		secondaryContainer: '#FFF3BF',
+		onSecondary: '#3C3C3C',
+		surface: '#FFFFFF',
+		surfaceVariant: '#F0F0F0',
+		background: '#F7F7F7',
+		onSurface: '#3C3C3C',
+		onSurfaceVariant: '#777777',
+		outline: '#E5E5E5',
+		error: '#FF4B4B',
+		onError: '#FFFFFF',
 	},
 };
 
 const darkPaperTheme = {
 	...MD3DarkTheme,
+	roundness: 16,
 	colors: {
 		...MD3DarkTheme.colors,
-		primary: '#3b82f6',
-		primaryContainer: '#1e3a5f',
-		secondary: '#1e293b',
-		surface: '#1e293b',
-		surfaceVariant: '#334155',
-		outline: '#334155',
-		background: '#0f172a',
-		onSurface: '#e2e8f0',
-		onSurfaceVariant: '#94a3b8',
+		primary: '#58CC02',
+		primaryContainer: '#2E5A12',
+		onPrimary: '#FFFFFF',
+		onPrimaryContainer: '#D7FFB8',
+		secondary: '#FFC800',
+		secondaryContainer: '#5C4A00',
+		onSecondary: '#131F24',
+		surface: '#1A2C33',
+		surfaceVariant: '#243B44',
+		background: '#131F24',
+		onSurface: '#F0F0F0',
+		onSurfaceVariant: '#A0A0A0',
+		outline: '#2E4550',
+		error: '#FF4B4B',
+		onError: '#FFFFFF',
 	},
 };
 

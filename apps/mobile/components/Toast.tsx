@@ -88,13 +88,13 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const getColors = (type: ToastType) => {
 		switch (type) {
 			case 'success':
-				return { bg: '#10b981', icon: '#fff' };
+				return { bg: colors.success, icon: '#fff' };
 			case 'error':
-				return { bg: '#ef4444', icon: '#fff' };
+				return { bg: colors.destructive, icon: '#fff' };
 			case 'coming-soon':
-				return { bg: colors.primary, icon: '#fff' };
+				return { bg: colors.accent, icon: colors.accentForeground };
 			default:
-				return { bg: isDark ? colors.surface : '#333', icon: '#fff' };
+				return { bg: isDark ? colors.surfaceElevated : colors.text, icon: '#fff' };
 		}
 	};
 
@@ -146,7 +146,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		paddingVertical: 14,
 		paddingHorizontal: 20,
-		borderRadius: 12,
+		borderRadius: 16,
 		gap: 12,
 		shadowColor: '#000',
 		shadowOffset: { width: 0, height: 4 },
@@ -157,7 +157,7 @@ const styles = StyleSheet.create({
 	toastText: {
 		color: '#fff',
 		fontSize: 15,
-		fontWeight: '500',
+		fontWeight: '700',
 		flex: 1,
 	},
 });
