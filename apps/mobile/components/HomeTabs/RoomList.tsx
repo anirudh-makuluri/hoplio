@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
-import { Icon } from 'react-native-paper';
 import { router } from 'expo-router';
 import RoomDisplayItem from '../RoomDisplayItem';
 import FilterTabs, { FilterType } from '../FilterTabs';
@@ -12,6 +11,7 @@ import { joinSocketRoom } from '~/redux/socketSlice';
 import { createAIAssistantRoom, getErrorMessage } from '~/lib/utils';
 import { useToast } from '../Toast';
 import { AppButton } from '~/components/ui';
+import AppIcon from '~/components/ui/AppIcon';
 import PressableScale from '~/components/ui/PressableScale';
 import { hapticLight } from '~/lib/haptics';
 
@@ -78,7 +78,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 	const renderEmptyState = () => (
 		<View style={styles.emptyContainer}>
 			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : '#D7FFB8' }]}>
-				<Icon source="chat" size={48} color={colors.primaryDark} />
+				<AppIcon name="chat" size={48} color={colors.primaryDark} />
 			</View>
 			<Text style={[styles.emptyTitle, { color: colors.text }]}>No chats yet</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
@@ -95,7 +95,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 	const renderNoResults = () => (
 		<View style={styles.emptyContainer}>
 			<View style={[styles.emptyIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-				<Icon source="account-group" size={40} color={colors.textSecondary} />
+				<AppIcon name="account-group" size={40} color={colors.textSecondary} />
 			</View>
 			<Text style={[styles.emptyTitle, { color: colors.text }]}>No groups yet</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>
@@ -125,7 +125,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 				onPress={openAIRoom}
 			>
 				<View style={[styles.aiIcon, { backgroundColor: colors.aiSoft }]}>
-					<Icon source="robot-happy-outline" size={24} color={colors.ai} />
+					<AppIcon name="robot-happy-outline" size={24} color={colors.ai} />
 				</View>
 				<View style={styles.aiContent}>
 					<Text style={[styles.aiTitle, { color: colors.text }]}>AI Assistant</Text>
@@ -133,7 +133,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 						{aiRoom ? 'Open your assistant room' : 'Create a private AI assistant room'}
 					</Text>
 				</View>
-				<Icon source="chevron-right" size={22} color={colors.ai} />
+				<AppIcon name="chevron-right" size={22} color={colors.ai} />
 			</PressableScale>
 		</>
 	);

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Image, Linking, Pressable, StyleSheet, View } from 'react-native';
-import { Avatar, Button, Dialog, Icon, Menu, Portal, Text, TextInput } from 'react-native-paper';
+import { Avatar, Button, Dialog, Menu, Portal, Text, TextInput } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useUser } from '~/app/providers';
 import { ChatDate, ChatMessage } from '~/lib/types';
 import { deleteMessage, editMessage, addReaction, saveMessage } from '~/redux/socketSlice';
@@ -200,7 +201,7 @@ export default function ChatBubble({
 												]}
 											>
 												<View style={[styles.fileIcon, { backgroundColor: colors.primary }]}>
-													<Icon source="file-outline" size={20} color="#fff" />
+													<AppIcon name="file-outline" size={20} color="#fff" />
 												</View>
 												<View style={styles.fileInfo}>
 													<Text style={[styles.fileName, { color: isSelf ? '#fff' : colors.text }]} numberOfLines={1}>
@@ -257,7 +258,7 @@ export default function ChatBubble({
 												(edited)
 											</Text>
 										)}
-										{chatMessage.isMsgSaved && <Icon source="star" size={12} color={isSelf ? '#fff' : colors.primary} />}
+										{chatMessage.isMsgSaved && <AppIcon name="star" size={12} color={isSelf ? '#fff' : colors.primary} />}
 									</View>
 								</View>
 							</Pressable>

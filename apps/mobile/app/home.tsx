@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Icon, FAB } from 'react-native-paper';
+import { Text, FAB } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useUser } from './providers';
 import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
@@ -309,7 +310,7 @@ export default function Page() {
 			<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
 				<View style={[styles.comingSoonContainer, { backgroundColor: colors.background }]}>
 					<View style={[styles.comingSoonIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-						<Icon source="shield-lock" size={64} color={colors.primary} />
+						<AppIcon name="shield-lock" size={64} color={colors.primary} />
 					</View>
 					<Text style={[styles.comingSoonTitle, { color: colors.text }]}>Securing your chats</Text>
 					<Text style={[styles.comingSoonMessage, { color: colors.textSecondary }]}>
@@ -327,11 +328,6 @@ export default function Page() {
 					<Text style={[styles.headerTitle, { color: colors.text }]}>
 						{currentTab === 'chats' ? 'Chats' : currentTab === 'updates' ? 'Friends' : 'Profile'}
 					</Text>
-					{currentTab === 'chats' ? (
-						<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-							Keep the streak going???
-						</Text>
-					) : null}
 				</View>
 
 				<View style={styles.mainContent}>{renderCurrentView()}</View>

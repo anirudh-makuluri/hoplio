@@ -7,8 +7,8 @@ import {
 	Searchbar,
 	IconButton,
 	Avatar,
-	Icon,
 } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { TUser } from '~/lib/types';
 import { customFetch, formatLastSeen } from '~/lib/utils';
 import FetchedUser from '../FetchedUser';
@@ -55,7 +55,7 @@ export default function Friends() {
 	const renderEmptyState = () => (
 		<View style={styles.emptyContainer}>
 			<View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
-				<Icon source="account-multiple" size={48} color={colors.primary} />
+				<AppIcon name="account-multiple" size={48} color={colors.primary} />
 			</View>
 			<Text style={[styles.emptyTitle, { color: colors.text }]}>No friend requests</Text>
 			<Text style={[styles.emptyMessage, { color: colors.textSecondary }]}>

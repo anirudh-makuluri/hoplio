@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
-import { Text, Icon, Badge } from 'react-native-paper';
+import { Text, Badge } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PressableScale from '~/components/ui/PressableScale';
@@ -68,8 +69,8 @@ export default function BottomNavBar({
 									},
 								]}
 							>
-								<Icon
-									source={isActive ? tab.activeIcon : tab.icon}
+								<AppIcon
+									name={isActive ? tab.activeIcon : tab.icon}
 									size={24}
 									color={isActive ? colors.primaryDark : colors.textSecondary}
 								/>

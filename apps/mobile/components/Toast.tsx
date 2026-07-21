@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import { Text, Icon } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -126,8 +127,8 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 							},
 						]}
 					>
-						<Icon
-							source={getIcon(toast.type || 'info')}
+						<AppIcon
+							name={getIcon(toast.type || 'info')}
 							size={22}
 							color={toastColors.icon}
 						/>

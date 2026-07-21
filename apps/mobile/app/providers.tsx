@@ -9,6 +9,7 @@ import { offlineStorage } from '../lib/offlineStorage';
 import NetInfo from '@react-native-community/netinfo';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
 import { ToastProvider } from '../components/Toast';
+import AppIcon from '../components/ui/AppIcon';
 import { auth } from '../lib/firebase';
 
 
@@ -83,7 +84,16 @@ const darkPaperTheme = {
 
 function PaperThemeGate({ children }: { children: ReactNode }) {
 	const { isDark } = useTheme();
-	return <PaperProvider theme={isDark ? darkPaperTheme : lightPaperTheme}>{children}</PaperProvider>;
+	return (
+		<PaperProvider
+			theme={isDark ? darkPaperTheme : lightPaperTheme}
+			settings={{
+				icon: ({ name, color, size }) => <AppIcon name={name} color={color} size={size} />,
+			}}
+		>
+			{children}
+		</PaperProvider>
+	);
 }
 
 export function Providers({ children }: { children: ReactNode }) {

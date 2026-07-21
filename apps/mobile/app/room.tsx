@@ -5,7 +5,6 @@ import {
 	Button,
 	Text,
 	TextInput,
-	Icon,
 	ActivityIndicator,
 	IconButton,
 	Menu,
@@ -14,6 +13,7 @@ import {
 	ProgressBar,
 	Divider,
 } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useUser } from '~/app/providers';
 import { ChatMessage } from '~/lib/types';
 import { setActiveRoomId, setLoadingMore, setOfflineMode } from '~/redux/chatSlice';
@@ -409,7 +409,7 @@ export default function Room() {
 							}}
 							style={styles.backButton}
 						>
-							<Icon source="chevron-left" size={28} color={colors.text} />
+							<AppIcon name="chevron-left" size={28} color={colors.text} />
 						</TouchableOpacity>
 
 						<TouchableOpacity
@@ -424,7 +424,7 @@ export default function Room() {
 									</Text>
 									{userIsOffline && (
 										<View style={[styles.offlineBadge, { backgroundColor: colors.destructive }]}>
-											<Icon source="wifi-off" size={10} color="#fff" />
+											<AppIcon name="wifi-off" size={10} color="#fff" />
 										</View>
 									)}
 								</View>
@@ -562,7 +562,7 @@ export default function Room() {
 
 				{secureSendEnabled && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="lock-outline" size={16} color={colors.primary} />
+						<AppIcon name="lock-outline" size={16} color={colors.primary} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>
 							Your next text message will be encrypted on this device.
 						</Text>
@@ -571,14 +571,14 @@ export default function Room() {
 
 				{aiDisabledReason && !isAIRoom && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="shield-lock-outline" size={16} color={colors.primary} />
+						<AppIcon name="shield-lock-outline" size={16} color={colors.primary} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{aiDisabledReason}</Text>
 					</View>
 				)}
 
 				{e2eeError && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="alert-circle-outline" size={16} color={colors.destructive} />
+						<AppIcon name="alert-circle-outline" size={16} color={colors.destructive} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{e2eeError}</Text>
 					</View>
 				)}
@@ -586,7 +586,7 @@ export default function Room() {
 				{/* Offline Indicator */}
 				{userIsOffline && (
 					<View style={[styles.offlineBar, { backgroundColor: colors.warning }]}>
-						<Icon source="wifi-off" size={16} color={colors.accentForeground} />
+						<AppIcon name="wifi-off" size={16} color={colors.accentForeground} />
 						<Text style={[styles.offlineText, { color: colors.accentForeground }]}>
 							You're offline. Messages will sync when connected.
 						</Text>
