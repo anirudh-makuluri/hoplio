@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "start": "expo start --dev-client",
+    "start": "node ./scripts/expo-start.js dev-client",
+    "start:go": "node ./scripts/expo-start.js go",
+    "start:go:clear": "node ./scripts/expo-start.js go --clear",
     "prepare:android": "node ./scripts/prepare-expo-native-paths.js",
     "android": "npm run prepare:android && expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web",
+    "web": "node ./scripts/expo-start.js web",
     "update:preview": "eas update --channel preview",
     "update:production": "eas update --channel production",
     "eas-build-pre-install": "bash ./eas-build-pre-install.sh"
@@ -20,6 +22,7 @@
     }
   },
   "dependencies": {
+    "@firebase/app": "^0.12.0",
     "@firebase/auth": "^1.12.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
@@ -41,11 +44,13 @@
     "expo-linking": "~8.0.11",
     "expo-notifications": "~0.32.12",
     "expo-router": "~6.0.23",
+    "expo-sqlite": "~16.0.10",
     "expo-system-ui": "~6.0.9",
     "expo-updates": "~29.0.19",
     "firebase": "^10.10.0",
     "nativewind": "^4.0.1",
     "react": "19.1.4",
+    "react-dom": "19.1.4",
     "react-native": "^0.81.5",
     "react-native-css-interop": "0.2.2",
     "react-native-get-random-values": "^2.0.0",
@@ -56,13 +61,10 @@
     "react-native-web": "^0.21.0",
     "react-native-worklets": "0.5.1",
     "react-redux": "^9.2.0",
+    "react-refresh": "^0.14.2",
     "socket.io-client": "^4.7.5",
     "tailwind-merge": "^2.2.2",
     "tweetnacl": "^1.0.3"
-  },
-  "overrides": {
-    "react": "19.1.4",
-    "react-dom": "19.1.4"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

@@ -76,7 +76,7 @@ export default function FetchedUser({
 				onDismiss={() => setSnackbarMsg('')}
 				style={{ backgroundColor: colors.surfaceElevated ?? colors.surface }}
 			>
-				{snackbarMsg}
+				<Text style={{ color: colors.text }}>{snackbarMsg}</Text>
 			</Snackbar>
 		</View>
 	);

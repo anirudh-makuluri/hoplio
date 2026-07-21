@@ -8,6 +8,7 @@
     "dev:backend": "pnpm --filter @hoplio/backend mon",
     "dev:web": "pnpm --filter @hoplio/web dev",
     "dev:mobile": "pnpm --filter @hoplio/mobile start",
+    "dev:mobile:go": "pnpm --filter @hoplio/mobile start:go",
     "build": "turbo run build",
     "lint": "turbo run lint",
     "test": "turbo run test",
@@ -17,5 +18,11 @@
   "devDependencies": {
     "@babel/plugin-transform-react-jsx": "^7.28.6",
     "turbo": "^2.3.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "@hoplio/mobile>react": "19.1.4",
+      "@hoplio/mobile>react-dom": "19.1.4"
+    }
   }
 }

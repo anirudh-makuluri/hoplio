@@ -329,7 +329,7 @@ export default function Page() {
 					</Text>
 					{currentTab === 'chats' ? (
 						<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-							Keep the streak going
+							Keep the streak going???
 						</Text>
 					) : null}
 				</View>
