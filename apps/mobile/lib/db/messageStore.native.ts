@@ -295,6 +295,25 @@ export async function clearPendingMessages(): Promise<void> {
 	await db.runAsync('DELETE FROM pending_messages');
 }
 
+export async function removePendingMessage(messageId: string): Promise<void> {
+	const db = await getDb();
+	await db.runAsync('DELETE FROM pending_messages WHERE id = ?', messageId);
+}
+
+export async function incrementPendingRetry(messageId: string): Promise<void> {
+	const db = await getDb();
+	await db.runAsync(
+		`
+			UPDATE pending_messages
+			SET retry_count = retry_count + 1,
+				timestamp = ?
+			WHERE id = ?
+		`,
+		Date.now(),
+		messageId
+	);
+}
+
 export async function clearAllMessageData(): Promise<void> {
 	const db = await getDb();
 	await db.withTransactionAsync(async () => {

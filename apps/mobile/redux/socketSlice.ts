@@ -7,6 +7,9 @@ import { globals } from "../globals";
 import { requestConversationSummary, getSmartReplies } from "../lib/utils";
 import { offlineStorage } from '../lib/offlineStorage';
 import { addMessage, loadOfflineMessages } from './chatSlice';
+import { loadOlderMessagesWithCache } from './chatThunks';
+import { runBackgroundSync } from './syncThunks';
+import { persistMessage } from '../lib/messageCache';
 import { setScheduledMessages, updateScheduledMessage as updateScheduledMessageAction, removeScheduledMessage } from './scheduledMessageSlice';
 
 type SocketUser = TUser & {
@@ -89,6 +92,9 @@ export const sendMessageToServer = (message: ChatMessage): AppThunk => async (di
 			encrypted: message.encrypted || ''
 		};
 		socket.emit('chat_event_client_to_server', backendMessage);
+		void persistMessage(message).catch((error) => {
+			console.error('Failed to cache sent message:', error);
+		});
 	} else {
 		// Offline: Save message for later sync
 		try {
@@ -116,14 +122,10 @@ export const loadChatHistory = (roomId: string, currentChatDocId?: string): AppT
 				id: msg.id
 			}));
 			const hasMore = messages.length > 0;
-			
-			// Import the action from chatSlice
-			const { addOlderMessages } = require('./chatSlice');
-			dispatch(addOlderMessages({ roomId, messages, hasMore }));
+
+			dispatch(loadOlderMessagesWithCache({ roomId, messages, hasMore }));
 		} else {
-			// No more messages
-			const { addOlderMessages } = require('./chatSlice');
-			dispatch(addOlderMessages({ roomId, messages: [], hasMore: false }));
+			dispatch(loadOlderMessagesWithCache({ roomId, messages: [], hasMore: false }));
 		}
 	});
 };
@@ -245,23 +247,8 @@ export const loadOfflineMessagesForRoom = (roomId: string): AppThunk => async (d
 };
 
 // Sync pending messages when back online
-export const syncPendingMessages = (): AppThunk => async (dispatch, getState) => {
-	try {
-		const pendingMessages = await offlineStorage.getPendingMessages();
-		if (pendingMessages.length > 0) {
-			console.log(`Syncing ${pendingMessages.length} pending messages`);
-			
-			// Send each pending message to server
-			for (const pendingMessage of pendingMessages) {
-				dispatch(sendMessageToServer(pendingMessage.message));
-			}
-			
-			// Clear pending messages after sync
-			await offlineStorage.clearPendingMessages();
-		}
-	} catch (error) {
-		console.error('Failed to sync pending messages:', error);
-	}
+export const syncPendingMessages = (): AppThunk => (dispatch) => {
+	dispatch(runBackgroundSync());
 };
 
 // Scheduled Messages WebSocket actions

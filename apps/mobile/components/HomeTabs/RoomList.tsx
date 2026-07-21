@@ -6,7 +6,8 @@ import FilterTabs, { FilterType } from '../FilterTabs';
 import { useUser } from '~/app/providers';
 import { useTheme } from '~/lib/themeContext';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
-import { joinChatRoom, setActiveRoomId } from '~/redux/chatSlice';
+import { joinChatRoomWithCache } from '~/redux/chatThunks';
+import { setActiveRoomId } from '~/redux/chatSlice';
 import { joinSocketRoom } from '~/redux/socketSlice';
 import { createAIAssistantRoom, getErrorMessage } from '~/lib/utils';
 import { useToast } from '../Toast';
@@ -52,7 +53,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 			if (aiRoom) {
 				if (!rooms[aiRoom.roomId]) {
 					dispatch(joinSocketRoom(aiRoom.roomId));
-					dispatch(joinChatRoom(aiRoom));
+					dispatch(joinChatRoomWithCache(aiRoom));
 				}
 
 				dispatch(setActiveRoomId(aiRoom.roomId));
@@ -66,7 +67,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 			}
 
 			dispatch(joinSocketRoom(response.roomId));
-			dispatch(joinChatRoom(response.room));
+			dispatch(joinChatRoomWithCache(response.room));
 			dispatch(setActiveRoomId(response.roomId));
 			updateUser({ rooms: [...(user.rooms || []), response.room] });
 			router.push('/room');

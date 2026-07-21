@@ -4,6 +4,7 @@ import { chatReducer } from './chatSlice';
 import { socketReducer } from './socketSlice';
 import { scheduledMessageReducer } from './scheduledMessageSlice';
 import { e2eeReducer } from './e2eeSlice';
+import { syncReducer } from './syncSlice';
 
 export type AppThunk<ReturnType = void> = ThunkAction<
 	ReturnType,
@@ -18,6 +19,7 @@ export const store = configureStore({
 		socket: socketReducer, 
 		scheduledMessages: scheduledMessageReducer,
 		e2ee: e2eeReducer,
+		sync: syncReducer,
 	},
 	middleware: (getDefaultMiddleware) =>
 		getDefaultMiddleware({ serializableCheck: false })

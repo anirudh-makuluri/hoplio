@@ -205,6 +205,10 @@ export default function AuthPage() {
 		}
 	};
 
+	if (isLoading || (user && !isLoggingOut)) {
+		return null;
+	}
+
 	return (
 		<BrandScreen contentStyle={styles.content}>
 			<KeyboardAvoidingView

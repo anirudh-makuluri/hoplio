@@ -75,6 +75,22 @@ export async function clearPendingMessages(): Promise<void> {
 	await AsyncStorage.removeItem(PENDING_MESSAGES_KEY);
 }
 
+export async function removePendingMessage(messageId: string): Promise<void> {
+	const pending = await getPendingMessages();
+	const next = pending.filter((item) => item.id !== messageId);
+	await replacePendingMessages(next);
+}
+
+export async function incrementPendingRetry(messageId: string): Promise<void> {
+	const pending = await getPendingMessages();
+	const next = pending.map((item) =>
+		item.id === messageId
+			? { ...item, retryCount: item.retryCount + 1, timestamp: Date.now() }
+			: item
+	);
+	await replacePendingMessages(next);
+}
+
 export async function clearAllMessageData(): Promise<void> {
 	await AsyncStorage.multiRemove([MESSAGES_DATA_KEY, PENDING_MESSAGES_KEY]);
 }

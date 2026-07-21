@@ -1,7 +1,8 @@
-import { ReactNode, createContext, useContext, useEffect, useState } from 'react'
+import { ReactNode, createContext, useContext, useEffect, useReducer, useState } from 'react'
 import { customFetch } from '../lib/utils';
 import { TAuthUser } from '../lib/types';
 import ReduxProvider from '../redux/redux-provider';
+import { useE2EEInitialization } from '../lib/hooks/useE2EE';
 import { MD3LightTheme, MD3DarkTheme, PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -21,7 +22,8 @@ type TUserContext = {
 	login: Function,
 	logout: Function,
 	updateUser: Function,
-	loginOffline: Function
+	loginOffline: Function,
+	replaceUserFromSync: (user: TAuthUser) => void,
 }
 
 const UserContext = createContext<TUserContext>({
@@ -32,8 +34,35 @@ const UserContext = createContext<TUserContext>({
 	login: () => { },
 	logout: () => { },
 	updateUser: () => { },
-	loginOffline: () => { }
+	loginOffline: () => { },
+	replaceUserFromSync: () => { },
 });
+
+type AuthState = {
+	user: TAuthUser | null;
+	isLoading: boolean;
+};
+
+type AuthAction =
+	| { type: 'RESTORE_SESSION'; user: TAuthUser }
+	| { type: 'SET_USER'; user: TAuthUser | null }
+	| { type: 'SET_LOADING'; isLoading: boolean }
+	| { type: 'FINISH_LOADING' };
+
+function authReducer(state: AuthState, action: AuthAction): AuthState {
+	switch (action.type) {
+		case 'RESTORE_SESSION':
+			return { user: action.user, isLoading: false };
+		case 'SET_USER':
+			return { ...state, user: action.user };
+		case 'SET_LOADING':
+			return { ...state, isLoading: action.isLoading };
+		case 'FINISH_LOADING':
+			return { ...state, isLoading: false };
+		default:
+			return state;
+	}
+}
 
 /** Duolingo-inspired Paper MD3 mapping — keep in sync with themeContext */
 const lightPaperTheme = {
@@ -82,6 +111,12 @@ const darkPaperTheme = {
 	},
 };
 
+/** Start loading device keys as early as possible — does not block UI. */
+function E2EEInitializer() {
+	useE2EEInitialization();
+	return null;
+}
+
 function PaperThemeGate({ children }: { children: ReactNode }) {
 	const { isDark } = useTheme();
 	return (
@@ -97,52 +132,81 @@ function PaperThemeGate({ children }: { children: ReactNode }) {
 }
 
 export function Providers({ children }: { children: ReactNode }) {
-	const [user, setUser] = useState<TAuthUser | null>(null);
-	const [isLoading, setLoading] = useState<boolean>(true);
+	const [{ user, isLoading }, dispatchAuth] = useReducer(authReducer, {
+		user: null,
+		isLoading: true,
+	});
 	const [isLoggingOut, setIsLoggingOut] = useState<boolean>(false);
 	const [isOffline, setIsOffline] = useState<boolean>(false);
 
 	useEffect(() => {
-		// Check network status
 		const unsubscribe = NetInfo.addEventListener(state => {
 			setIsOffline(!state.isConnected);
 		});
 
-		// Initialize login
-		if (!user) {
-			login();
-		}
+		void initializeAuth();
 
 		return () => unsubscribe();
 	}, []);
 
-	async function login() {
-		setLoading(true);
-		
+	/** Cache-first launch: show cached user immediately, refresh session in background. */
+	async function initializeAuth() {
+		let hadCachedUser = false;
+
 		try {
-			// Try online login first
+			const cached = await offlineStorage.getUserData();
+			if (cached?.user) {
+				hadCachedUser = true;
+				dispatchAuth({ type: 'RESTORE_SESSION', user: cached.user });
+			}
+		} catch (error) {
+			console.error('Failed to hydrate user from cache:', error);
+		}
+
+		if (!hadCachedUser) {
+			await refreshSession({ showLoading: true });
+		}
+	}
+
+	async function refreshSession(options: { showLoading?: boolean; hadCachedUser?: boolean } = {}) {
+		const { showLoading = false, hadCachedUser = false } = options;
+
+		if (showLoading) {
+			dispatchAuth({ type: 'SET_LOADING', isLoading: true });
+		}
+
+		try {
 			const data = await customFetch({ pathName: 'session' });
 			if (data.success) {
-				setUser(data.user);
-				// Save user data for offline access
+				dispatchAuth({ type: 'SET_USER', user: data.user });
 				await offlineStorage.saveUserData(data.user);
 				await offlineStorage.setOfflineMode(false);
 			}
 		} catch (error) {
-			console.warn('Online login failed, trying offline:', error);
-			
-			// Try offline login
-			await loginOffline();
+			console.warn('Session refresh failed:', error);
+
+			if (!hadCachedUser) {
+				await loginOffline();
+			} else {
+				await offlineStorage.setOfflineMode(true);
+			}
 		} finally {
-			setLoading(false);
+			if (showLoading) {
+				dispatchAuth({ type: 'FINISH_LOADING' });
+			}
 		}
+	}
+
+	/** Explicit session fetch after sign-in (network-first). */
+	async function login() {
+		await refreshSession({ showLoading: true });
 	}
 
 	async function loginOffline() {
 		try {
 			const offlineUserData = await offlineStorage.getUserData();
 			if (offlineUserData && offlineUserData.user) {
-				setUser(offlineUserData.user);
+				dispatchAuth({ type: 'SET_USER', user: offlineUserData.user });
 				await offlineStorage.setOfflineMode(true);
 				console.log('Logged in offline with cached user data');
 			} else {
@@ -151,6 +215,10 @@ export function Providers({ children }: { children: ReactNode }) {
 		} catch (error) {
 			console.error('Offline login failed:', error);
 		}
+	}
+
+	function replaceUserFromSync(sessionUser: TAuthUser) {
+		dispatchAuth({ type: 'SET_USER', user: sessionUser });
 	}
 
 	async function updateUser(newData: Partial<TAuthUser>) {
@@ -167,7 +235,7 @@ export function Providers({ children }: { children: ReactNode }) {
 			rooms: newData.rooms !== undefined ? newData.rooms : user.rooms,
 		};
 
-		setUser(newUserData);
+		dispatchAuth({ type: 'SET_USER', user: newUserData });
 		
 		// Update offline storage
 		try {
@@ -209,12 +277,12 @@ export function Providers({ children }: { children: ReactNode }) {
 		try {
 			// Clear offline data
 			await offlineStorage.clearUserData();
-			setUser(null);
+			dispatchAuth({ type: 'SET_USER', user: null });
 			router.replace('/auth');
 		} catch (error) {
 			console.error('Failed to clear offline data:', error);
 			// Still clear user and redirect
-			setUser(null);
+			dispatchAuth({ type: 'SET_USER', user: null });
 			router.replace('/auth');
 		} finally {
 			setIsLoggingOut(false);
@@ -224,8 +292,9 @@ export function Providers({ children }: { children: ReactNode }) {
 	return (
 		<SafeAreaProvider>
 			<ThemeProvider>
-				<UserContext.Provider value={{ user, login, logout, isLoading, isLoggingOut, isOffline, updateUser, loginOffline }}>
+				<UserContext.Provider value={{ user, login, logout, isLoading, isLoggingOut, isOffline, updateUser, loginOffline, replaceUserFromSync }}>
 					<ReduxProvider>
+						<E2EEInitializer />
 						<PaperThemeGate>
 							<ToastProvider>{children}</ToastProvider>
 						</PaperThemeGate>

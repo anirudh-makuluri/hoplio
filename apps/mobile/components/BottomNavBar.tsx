@@ -113,6 +113,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		paddingVertical: 4,
+		borderRadius: 99
 	},
 	iconPill: {
 		position: 'relative',
