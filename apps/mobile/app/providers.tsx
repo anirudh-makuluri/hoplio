@@ -11,6 +11,7 @@ import NetInfo from '@react-native-community/netinfo';
 import { ThemeProvider, useTheme } from '../lib/themeContext';
 import { ToastProvider } from '../components/Toast';
 import AppIcon from '../components/ui/AppIcon';
+import AppStatusBar from '../components/AppStatusBar';
 import { auth } from '../lib/firebase';
 
 
@@ -291,6 +292,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
 	return (
 		<SafeAreaProvider>
+			<AppStatusBar />
 			<ThemeProvider>
 				<UserContext.Provider value={{ user, login, logout, isLoading, isLoggingOut, isOffline, updateUser, loginOffline, replaceUserFromSync }}>
 					<ReduxProvider>

@@ -86,7 +86,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 				Add friends or start a group — your conversations will land here.
 			</Text>
 			{onCreateGroup && (
-				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth style={styles.createButton}>
+				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth>
 					Create Group Chat
 				</AppButton>
 			)}
@@ -103,7 +103,7 @@ export default function RoomList({ onCreateGroup }: RoomListProps) {
 				Create a group to chat with multiple friends at once.
 			</Text>
 			{onCreateGroup && (
-				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth style={styles.createButton}>
+				<AppButton onPress={onCreateGroup} icon="account-multiple-plus" fullWidth>
 					Create Group
 				</AppButton>
 			)}
@@ -226,8 +226,5 @@ const styles = StyleSheet.create({
 		textAlign: 'center',
 		lineHeight: 22,
 		marginBottom: 24,
-	},
-	createButton: {
-		maxWidth: 280,
 	},
 });

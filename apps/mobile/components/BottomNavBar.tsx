@@ -55,7 +55,7 @@ export default function BottomNavBar({
 							key={tab.id}
 							style={styles.tab}
 							haptic="none"
-							scaleTo={0.94}
+							scaleTo={1}
 							onPress={() => {
 								void hapticSelection();
 								onTabChange(tab.id);
@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		paddingVertical: 4,
-		borderRadius: 99
+		borderRadius: 99999
 	},
 	iconPill: {
 		position: 'relative',
