@@ -5,6 +5,7 @@ import ReduxProvider from '../redux/redux-provider';
 import { useE2EEInitialization } from '../lib/hooks/useE2EE';
 import { MD3LightTheme, MD3DarkTheme, PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { KeyboardProvider } from 'react-native-keyboard-controller';
 import { router } from 'expo-router';
 import { offlineStorage } from '../lib/offlineStorage';
 import NetInfo from '@react-native-community/netinfo';
@@ -292,6 +293,7 @@ export function Providers({ children }: { children: ReactNode }) {
 
 	return (
 		<SafeAreaProvider>
+			<KeyboardProvider>
 			<AppStatusBar />
 			<ThemeProvider>
 				<UserContext.Provider value={{ user, login, logout, isLoading, isLoggingOut, isOffline, updateUser, loginOffline, replaceUserFromSync }}>
@@ -303,6 +305,7 @@ export function Providers({ children }: { children: ReactNode }) {
 					</ReduxProvider>
 				</UserContext.Provider>
 			</ThemeProvider>
+			</KeyboardProvider>
 		</SafeAreaProvider>
 	)
 

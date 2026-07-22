@@ -113,14 +113,14 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		justifyContent: 'center',
 		paddingVertical: 4,
-		borderRadius: 99999
 	},
 	iconPill: {
 		position: 'relative',
 		paddingHorizontal: 16,
 		paddingVertical: 6,
-		borderRadius: 16,
+		borderRadius: 999,
 		marginBottom: 2,
+		overflow: 'hidden',
 	},
 	badge: {
 		position: 'absolute',
