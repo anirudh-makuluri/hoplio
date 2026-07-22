@@ -5,7 +5,7 @@ import ReduxProvider from '../redux/redux-provider';
 import { useE2EEInitialization } from '../lib/hooks/useE2EE';
 import { MD3LightTheme, MD3DarkTheme, PaperProvider } from 'react-native-paper';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { KeyboardProvider } from 'react-native-keyboard-controller';
+import { KeyboardProvider } from '../lib/keyboardController';
 import { router } from 'expo-router';
 import { offlineStorage } from '../lib/offlineStorage';
 import NetInfo from '@react-native-community/netinfo';

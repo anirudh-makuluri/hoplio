@@ -41,7 +41,7 @@ import ScheduledMessagesList from '../components/ScheduledMessagesList';
 import SemanticSearchSheet from '../components/SemanticSearchSheet';
 import { router } from 'expo-router';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { KeyboardStickyView } from 'react-native-keyboard-controller';
+import { KeyboardStickyView } from '~/lib/keyboardController';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { formatLastSeen, uploadFile } from '~/lib/utils';

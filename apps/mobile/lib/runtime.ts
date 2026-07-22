@@ -15,3 +15,8 @@ export function supportsGoogleSignIn(): boolean {
 export function supportsRemotePushNotifications(): boolean {
 	return Platform.OS !== 'web' && !isExpoGo();
 }
+
+/** Keyboard controller requires native code from a custom dev build. */
+export function supportsKeyboardController(): boolean {
+	return Platform.OS !== 'web' && !isExpoGo();
+}

@@ -21,8 +21,8 @@
   },
   "pnpm": {
     "overrides": {
-      "@hoplio/mobile>react": "19.1.0",
-      "@hoplio/mobile>react-dom": "19.1.0"
+      "@hoplio/mobile>react": "19.1.4",
+      "@hoplio/mobile>react-dom": "19.1.4"
     }
   }
 }
