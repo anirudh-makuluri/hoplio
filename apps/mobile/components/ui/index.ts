@@ -1,3 +1,4 @@
+export { default as AppIcon } from './AppIcon';
 export { default as AppButton } from './AppButton';
 export { default as AppCard } from './AppCard';
 export { default as AppChip } from './AppChip';

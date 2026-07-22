@@ -3,7 +3,6 @@ import { Alert, ScrollView, StyleSheet, View } from 'react-native';
 import {
 	ActivityIndicator,
 	Avatar,
-	Icon,
 	IconButton,
 	Modal,
 	Portal,
@@ -11,6 +10,7 @@ import {
 	Text,
 	TextInput,
 } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
@@ -506,7 +506,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 							<ScrollView showsVerticalScrollIndicator={false}>
 								{filteredFriends.length === 0 ? (
 									<View style={{ paddingVertical: 24, alignItems: 'center', gap: 8 }}>
-										<Icon source="account-search-outline" size={32} color={colors.textSecondary} />
+										<AppIcon name="account-search-outline" size={32} color={colors.textSecondary} />
 										<Text style={{ color: colors.textSecondary }}>
 											{availableFriends.length === 0 ? 'No more friends available to add.' : 'No matching friends found.'}
 										</Text>
@@ -524,7 +524,7 @@ export default function GroupChat({ roomId, onClose }: GroupChatProps) {
 													<Text style={{ fontSize: 16, fontWeight: '500', color: colors.text }}>{friend.name}</Text>
 													<Text style={{ fontSize: 12, color: colors.textSecondary }}>{friend.email}</Text>
 												</View>
-												{selectedMembers.includes(friend.uid) && <Icon source="check-circle" size={24} color={colors.primary} />}
+												{selectedMembers.includes(friend.uid) && <AppIcon name="check-circle" size={24} color={colors.primary} />}
 											</View>
 										</PressableScale>
 									))

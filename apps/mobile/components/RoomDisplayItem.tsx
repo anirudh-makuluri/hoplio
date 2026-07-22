@@ -1,6 +1,7 @@
 import { router } from 'expo-router';
 import { StyleSheet, View } from 'react-native';
-import { Avatar, Badge, Icon, Text } from 'react-native-paper';
+import { Avatar, Badge, Text } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useUser } from '~/app/providers';
 import { TRoomData } from '~/lib/types';
 import { useTheme } from '~/lib/themeContext';
@@ -112,7 +113,7 @@ export default function RoomDisplayItem({ roomData }: { roomData: TRoomData }) {
 					</View>
 				) : roomData.is_group ? (
 					<View style={[styles.badge, { backgroundColor: colors.primary, borderColor: colors.background }]}>
-						<Icon source="account-multiple" size={12} color="#fff" />
+						<AppIcon name="account-multiple" size={12} color="#fff" />
 					</View>
 				) : null}
 			</View>

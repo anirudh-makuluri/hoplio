@@ -1,14 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet } from 'react-native';
-import { Text, Icon, FAB } from 'react-native-paper';
+import { ActivityIndicator, Text, FAB } from 'react-native-paper';
 import { useUser } from './providers';
 import { router } from 'expo-router';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
-import { initAndJoinSocketRooms, joinSocketRoom, syncPendingMessages } from '~/redux/socketSlice';
+import { initAndJoinSocketRooms, joinSocketRoom } from '~/redux/socketSlice';
+import { runBackgroundSync } from '~/redux/syncThunks';
+import { selectIsSyncing } from '~/redux/syncSlice';
 import {
-	addMessage,
 	clearRoomData,
-	joinChatRoom,
 	editMessageInChat,
 	deleteMessageFromChat,
 	saveChatMessage,
@@ -17,6 +17,8 @@ import {
 	setOfflineMode,
 	setActiveRoomId,
 } from '~/redux/chatSlice';
+import { joinChatRoomWithCache, receiveChatMessage } from '~/redux/chatThunks';
+import { offlineStorage } from '~/lib/offlineStorage';
 import { useDispatch } from 'react-redux';
 import { ChatMessage, TUser, TRoomData } from '~/lib/types';
 import { genRoomId } from '~/lib/utils';
@@ -29,10 +31,8 @@ import GroupChat from '~/components/GroupChat';
 import BottomNavBar from '~/components/BottomNavBar';
 import { useToast } from '~/components/Toast';
 import {
-	useE2EEInitialization,
 	useDeviceId,
 	useEnsureE2EEKeys,
-	useE2EESyncingKeys,
 } from '~/lib/hooks/useE2EE';
 import {
 	consumePendingNotificationRoomId,
@@ -44,8 +44,8 @@ import { hapticMedium } from '~/lib/haptics';
 type TabType = 'chats' | 'updates' | 'profile';
 
 export default function Page() {
-	const { user, isLoading, updateUser, logout, isOffline } = useUser();
-	const { colors, isDark } = useTheme();
+	const { user, isLoading, updateUser, logout, isOffline, replaceUserFromSync } = useUser();
+	const { colors } = useTheme();
 	const { showToast } = useToast();
 	const socket = useAppSelector((state) => state.socket.socket);
 	const activeChatRoomId = useAppSelector((state) => state.chat.activeChatRoomId);
@@ -53,14 +53,20 @@ export default function Page() {
 	const deviceName = useAppSelector((state) => state.e2ee.deviceState?.deviceName);
 	const dispatch = useAppDispatch();
 	const reduxDispatch = useDispatch();
-	const e2eeInitialized = useE2EEInitialization();
 	const deviceId = useDeviceId();
+	const e2eeInitialized = useAppSelector((state) => state.e2ee.deviceState != null);
 	const ensureE2EEKeys = useEnsureE2EEKeys();
-	const isSyncingE2EEKeys = useE2EESyncingKeys();
 	const [currentTab, setCurrentTab] = useState<TabType>('chats');
 	const [showGroupModal, setShowGroupModal] = useState(false);
 	const [roomsBootstrapped, setRoomsBootstrapped] = useState(false);
+	const [backgroundSetupDone, setBackgroundSetupDone] = useState(false);
+	const isSyncing = useAppSelector(selectIsSyncing);
+	const hasScheduledInitialSyncRef = useRef(false);
 	const totalUnreadCount = Object.values(unreadCounts).reduce((sum, count) => sum + count, 0);
+
+	const triggerBackgroundSync = useCallback(() => {
+		dispatch(runBackgroundSync({ onUserUpdated: replaceUserFromSync }));
+	}, [dispatch, replaceUserFromSync]);
 
 	useEffect(() => {
 		initializeNotificationResponseTracking().catch((error) => {
@@ -89,69 +95,130 @@ export default function Page() {
 	};
 
 	useEffect(() => {
+		if (!isLoading && !user) {
+			router.replace('/auth');
+			return;
+		}
+
+		if (!user || roomsBootstrapped) {
+			return;
+		}
+
 		let cancelled = false;
 
 		const bootstrapRooms = async () => {
-			try {
-				if (!isLoading && !user) {
-					router.replace('/auth');
+			dispatch(setOfflineMode(isOffline || false));
+
+			let rooms = Array.isArray(user.rooms) ? user.rooms : [];
+			if (rooms.length === 0) {
+				const cachedRooms = await offlineStorage.getRoomsData();
+				if (cachedRooms) {
+					rooms = Object.values(cachedRooms);
+				}
+			}
+
+			for (const roomData of rooms) {
+				if (cancelled) {
 					return;
 				}
+				await dispatch(joinChatRoomWithCache(roomData));
+			}
 
-				if (!user || !e2eeInitialized) {
-					return;
-				}
-
-				dispatch(setOfflineMode(isOffline || false));
-
-				const roomIds: string[] = Array.isArray(user.rooms) ? user.rooms.map((room) => room.roomId) : [];
-				const e2eeRoomIds = roomIds.filter((roomId) => !roomId.startsWith('ai-assistant-'));
-
-				if (!isOffline) {
-					await ensureE2EEKeys(user.uid, e2eeRoomIds);
-
-					dispatch(
-						initAndJoinSocketRooms(roomIds, {
-							email: user.email,
-							name: user.name,
-							photo_url: user.photo_url,
-							uid: user.uid,
-							deviceId,
-						})
-					);
-
-					dispatch(syncPendingMessages());
-				}
-
-				if (Array.isArray(user.rooms)) {
-					user.rooms.forEach((roomData) => {
-						dispatch(joinChatRoom(roomData));
-					});
-				}
-
-				if (!cancelled) {
-					setRoomsBootstrapped(true);
-				}
-			} catch (error) {
-				console.error('Failed to bootstrap mobile rooms:', error);
-				if (!cancelled) {
-					showToast({ message: 'Unable to finish secure room setup.', type: 'error' });
-				}
+			if (!cancelled) {
+				setRoomsBootstrapped(true);
 			}
 		};
 
-		if (!roomsBootstrapped) {
-			void bootstrapRooms();
-		}
+		void bootstrapRooms();
 
 		return () => {
 			cancelled = true;
 		};
-	}, [user, isLoading, isOffline, e2eeInitialized, ensureE2EEKeys, roomsBootstrapped, dispatch, router, deviceId]);
+	}, [user, isLoading, isOffline, roomsBootstrapped, dispatch, router]);
+
+	useEffect(() => {
+		if (!user) {
+			offlineStorage.setSyncHandler(null);
+			hasScheduledInitialSyncRef.current = false;
+			return;
+		}
+
+		offlineStorage.setSyncHandler(async () => {
+			await dispatch(runBackgroundSync({ onUserUpdated: replaceUserFromSync }));
+		});
+
+		return () => {
+			offlineStorage.setSyncHandler(null);
+		};
+	}, [user, dispatch, replaceUserFromSync]);
+
+	useEffect(() => {
+		if (!user || !roomsBootstrapped || !backgroundSetupDone || hasScheduledInitialSyncRef.current) {
+			return;
+		}
+
+		hasScheduledInitialSyncRef.current = true;
+		triggerBackgroundSync();
+	}, [user, roomsBootstrapped, backgroundSetupDone, triggerBackgroundSync]);
+
+	useEffect(() => {
+		if (!user || !roomsBootstrapped || isOffline || backgroundSetupDone || !e2eeInitialized) {
+			return;
+		}
+
+		let cancelled = false;
+
+		const bootstrapBackground = async () => {
+			const roomIds: string[] = Array.isArray(user.rooms) ? user.rooms.map((room) => room.roomId) : [];
+			const e2eeRoomIds = roomIds.filter((roomId) => !roomId.startsWith('ai-assistant-'));
+
+			try {
+				dispatch(
+					initAndJoinSocketRooms(roomIds, {
+						email: user.email,
+						name: user.name,
+						photo_url: user.photo_url,
+						uid: user.uid,
+						deviceId,
+					})
+				);
+
+				void ensureE2EEKeys(user.uid, e2eeRoomIds).catch((error) => {
+					console.error('Background E2EE key sync failed:', error);
+				});
+			} catch (error) {
+				console.error('Failed to connect realtime chat:', error);
+				if (!cancelled) {
+					showToast({ message: 'Unable to connect to chat server.', type: 'error' });
+				}
+			} finally {
+				if (!cancelled) {
+					setBackgroundSetupDone(true);
+				}
+			}
+		};
+
+		void bootstrapBackground();
+
+		return () => {
+			cancelled = true;
+		};
+	}, [
+		user,
+		roomsBootstrapped,
+		isOffline,
+		backgroundSetupDone,
+		e2eeInitialized,
+		ensureE2EEKeys,
+		deviceId,
+		dispatch,
+		showToast,
+	]);
 
 	useEffect(() => {
 		if (!user) {
 			setRoomsBootstrapped(false);
+			setBackgroundSetupDone(false);
 		}
 	}, [user]);
 
@@ -200,7 +267,7 @@ export default function Page() {
 				id: msg.id,
 			};
 			dispatch(
-				addMessage({
+				receiveChatMessage({
 					message: mappedMessage,
 					currentUserUid: user?.uid,
 				})
@@ -234,7 +301,7 @@ export default function Page() {
 			rooms.push(newRoomData);
 
 			dispatch(joinSocketRoom(newRoomId));
-			dispatch(joinChatRoom(newRoomData));
+			dispatch(joinChatRoomWithCache(newRoomData));
 
 			updateUser({
 				friend_list: friendList,
@@ -304,34 +371,21 @@ export default function Page() {
 		};
 	}, [socket, user, updateUser, dispatch]);
 
-	if (user && (!e2eeInitialized || !roomsBootstrapped || isSyncingE2EEKeys)) {
-		return (
-			<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
-				<View style={[styles.comingSoonContainer, { backgroundColor: colors.background }]}>
-					<View style={[styles.comingSoonIcon, { backgroundColor: isDark ? colors.surface : colors.muted }]}>
-						<Icon source="shield-lock" size={64} color={colors.primary} />
-					</View>
-					<Text style={[styles.comingSoonTitle, { color: colors.text }]}>Securing your chats</Text>
-					<Text style={[styles.comingSoonMessage, { color: colors.textSecondary }]}>
-						Preparing device keys and loading your rooms.
-					</Text>
-				</View>
-			</SafeAreaView>
-		);
-	}
-
 	return (
 		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
 			<View style={styles.content}>
 				<View style={[styles.header, { borderBottomColor: colors.border, backgroundColor: colors.surface }]}>
-					<Text style={[styles.headerTitle, { color: colors.text }]}>
-						{currentTab === 'chats' ? 'Chats' : currentTab === 'updates' ? 'Friends' : 'Profile'}
-					</Text>
-					{currentTab === 'chats' ? (
-						<Text style={[styles.headerSubtitle, { color: colors.textSecondary }]}>
-							Keep the streak going
+					<View style={styles.headerRow}>
+						<Text style={[styles.headerTitle, { color: colors.text }]}>
+							{currentTab === 'chats' ? 'Chats' : currentTab === 'updates' ? 'Friends' : 'Profile'}
 						</Text>
-					) : null}
+						{isSyncing && (
+							<View style={styles.syncIndicator}>
+								<ActivityIndicator size="small" color={colors.primary} />
+								<Text style={[styles.syncText, { color: colors.textSecondary }]}>Syncing</Text>
+							</View>
+						)}
+					</View>
 				</View>
 
 				<View style={styles.mainContent}>{renderCurrentView()}</View>
@@ -380,10 +434,26 @@ const styles = StyleSheet.create({
 		paddingBottom: 14,
 		borderBottomWidth: 2,
 	},
+	headerRow: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		justifyContent: 'space-between',
+		gap: 12,
+	},
 	headerTitle: {
 		fontSize: 30,
 		fontWeight: '800',
 		letterSpacing: -0.6,
+		flexShrink: 1,
+	},
+	syncIndicator: {
+		flexDirection: 'row',
+		alignItems: 'center',
+		gap: 6,
+	},
+	syncText: {
+		fontSize: 12,
+		fontWeight: '600',
 	},
 	headerSubtitle: {
 		fontSize: 13,
@@ -399,28 +469,5 @@ const styles = StyleSheet.create({
 		bottom: 20,
 		borderRadius: 18,
 		elevation: 6,
-	},
-	comingSoonContainer: {
-		flex: 1,
-		alignItems: 'center',
-		justifyContent: 'center',
-		padding: 40,
-	},
-	comingSoonIcon: {
-		width: 120,
-		height: 120,
-		borderRadius: 60,
-		alignItems: 'center',
-		justifyContent: 'center',
-		marginBottom: 24,
-	},
-	comingSoonTitle: {
-		fontSize: 24,
-		fontWeight: '800',
-		marginBottom: 8,
-	},
-	comingSoonMessage: {
-		fontSize: 16,
-		textAlign: 'center',
 	},
 });

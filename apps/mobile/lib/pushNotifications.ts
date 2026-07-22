@@ -1,22 +1,53 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import { auth } from './firebase';
 import { globals } from '../globals';
+import { supportsRemotePushNotifications } from './runtime';
 
 const PENDING_NOTIFICATION_ROOM_KEY = 'pending_notification_room_id';
 const MESSAGE_CHANNEL_ID = 'hoplio-messages';
 
 let notificationTrackingInitialized = false;
+let notificationHandlerConfigured = false;
 
-Notifications.setNotificationHandler({
-	handleNotification: async () => ({
-		shouldShowBanner: true,
-		shouldShowList: true,
-		shouldPlaySound: true,
-		shouldSetBadge: true,
-	}),
-});
+type NotificationResponse = {
+	notification?: {
+		request?: {
+			content?: {
+				data?: Record<string, unknown>;
+			};
+		};
+	};
+};
+
+async function getNotificationsModule() {
+	if (!supportsRemotePushNotifications()) {
+		return null;
+	}
+
+	return import('expo-notifications');
+}
+
+async function ensureNotificationHandlerConfigured() {
+	if (notificationHandlerConfigured || !supportsRemotePushNotifications()) {
+		return;
+	}
+
+	const Notifications = await getNotificationsModule();
+	if (!Notifications) {
+		return;
+	}
+
+	Notifications.setNotificationHandler({
+		handleNotification: async () => ({
+			shouldShowBanner: true,
+			shouldShowList: true,
+			shouldPlaySound: true,
+			shouldSetBadge: true,
+		}),
+	});
+	notificationHandlerConfigured = true;
+}
 
 type RegisterAndroidPushDeviceParams = {
 	deviceId: string;
@@ -24,12 +55,20 @@ type RegisterAndroidPushDeviceParams = {
 };
 
 export async function initializeNotificationResponseTracking() {
-	if (notificationTrackingInitialized) {
+	if (!supportsRemotePushNotifications() || notificationTrackingInitialized) {
+		return;
+	}
+
+	await ensureNotificationHandlerConfigured();
+	const Notifications = await getNotificationsModule();
+	if (!Notifications) {
 		return;
 	}
 
 	notificationTrackingInitialized = true;
-	await rememberRoomFromNotificationResponse(await Notifications.getLastNotificationResponseAsync());
+	await rememberRoomFromNotificationResponse(
+		await Notifications.getLastNotificationResponseAsync()
+	);
 	Notifications.addNotificationResponseReceivedListener((response) => {
 		void rememberRoomFromNotificationResponse(response);
 	});
@@ -39,11 +78,22 @@ export async function registerAndroidPushDevice({
 	deviceId,
 	deviceName,
 }: RegisterAndroidPushDeviceParams) {
-	if (Platform.OS !== 'android' || !deviceId || !globals.NOTIFICATION_SERVICE_URL) {
+	if (
+		!supportsRemotePushNotifications() ||
+		Platform.OS !== 'android' ||
+		!deviceId ||
+		!globals.NOTIFICATION_SERVICE_URL
+	) {
 		return { skipped: true };
 	}
 
-	await initializeAndroidChannel();
+	await ensureNotificationHandlerConfigured();
+	const Notifications = await getNotificationsModule();
+	if (!Notifications) {
+		return { skipped: true };
+	}
+
+	await initializeAndroidChannel(Notifications);
 
 	const { status: existingStatus } = await Notifications.getPermissionsAsync();
 	let finalStatus = existingStatus;
@@ -93,7 +143,12 @@ export async function registerAndroidPushDevice({
 }
 
 export async function unregisterAndroidPushDevice(deviceId: string) {
-	if (Platform.OS !== 'android' || !deviceId || !globals.NOTIFICATION_SERVICE_URL) {
+	if (
+		!supportsRemotePushNotifications() ||
+		Platform.OS !== 'android' ||
+		!deviceId ||
+		!globals.NOTIFICATION_SERVICE_URL
+	) {
 		return;
 	}
 
@@ -121,8 +176,10 @@ export async function consumePendingNotificationRoomId() {
 	return roomId;
 }
 
-async function initializeAndroidChannel() {
-	if (Platform.OS !== 'android') {
+async function initializeAndroidChannel(
+	Notifications: Awaited<ReturnType<typeof getNotificationsModule>>
+) {
+	if (!Notifications || Platform.OS !== 'android') {
 		return;
 	}
 
@@ -134,7 +191,7 @@ async function initializeAndroidChannel() {
 	});
 }
 
-async function rememberRoomFromNotificationResponse(response: Notifications.NotificationResponse | null) {
+async function rememberRoomFromNotificationResponse(response: NotificationResponse | null) {
 	const roomId = extractRoomId(response);
 	if (!roomId) {
 		return;
@@ -143,7 +200,7 @@ async function rememberRoomFromNotificationResponse(response: Notifications.Noti
 	await AsyncStorage.setItem(PENDING_NOTIFICATION_ROOM_KEY, roomId);
 }
 
-function extractRoomId(response: Notifications.NotificationResponse | null) {
+function extractRoomId(response: NotificationResponse | null) {
 	const maybeRoomId = response?.notification?.request?.content?.data?.roomId;
 	return typeof maybeRoomId === 'string' && maybeRoomId.trim() ? maybeRoomId.trim() : null;
 }

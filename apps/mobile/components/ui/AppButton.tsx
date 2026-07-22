@@ -8,7 +8,7 @@ import {
 	View,
 	ViewStyle,
 } from 'react-native';
-import { Icon } from 'react-native-paper';
+import AppIcon from './AppIcon';
 import { LIP_HEIGHT, useTheme } from '~/lib/themeContext';
 import { hapticError, hapticMedium, hapticSuccess } from '~/lib/haptics';
 
@@ -140,7 +140,7 @@ export default function AppButton({
 					<ActivityIndicator color={palette.text} />
 				) : (
 					<View style={styles.content}>
-						{icon ? <Icon source={icon} size={compact ? 18 : 20} color={palette.text} /> : null}
+						{icon ? <AppIcon name={icon} size={compact ? 18 : 20} color={palette.text} /> : null}
 						<Text
 							style={[
 								styles.label,

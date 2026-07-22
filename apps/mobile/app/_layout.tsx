@@ -5,9 +5,11 @@ import { useAppUpdates } from '../lib/useAppUpdates'
 
 // Import your global CSS file
 import "../global.css"
+import { globals } from '~/globals';
 
 function AppUpdatesGate({ children }: { children: ReactNode }) {
 	useAppUpdates();
+	console.log(`Using backend URL: ${globals.BACKEND_URL}`);
 	return <>{children}</>;
 }
 

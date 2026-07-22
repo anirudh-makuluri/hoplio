@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { View, StyleSheet, Animated, TouchableOpacity } from 'react-native';
-import { Text, Icon } from 'react-native-paper';
+import { Text } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -88,20 +89,26 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 	const getColors = (type: ToastType) => {
 		switch (type) {
 			case 'success':
-				return { bg: colors.success, icon: '#fff' };
+				return { bg: colors.success, icon: '#fff', text: '#fff' };
 			case 'error':
-				return { bg: colors.destructive, icon: '#fff' };
+				return { bg: colors.destructive, icon: '#fff', text: '#fff' };
 			case 'coming-soon':
-				return { bg: colors.accent, icon: colors.accentForeground };
+				return { bg: colors.accent, icon: colors.accentForeground, text: colors.accentForeground };
 			default:
-				return { bg: isDark ? colors.surfaceElevated : colors.text, icon: '#fff' };
+				return {
+					bg: isDark ? colors.surfaceElevated : colors.text,
+					icon: isDark ? colors.text : '#fff',
+					text: isDark ? colors.text : '#fff',
+				};
 		}
 	};
+
+	const toastColors = toast ? getColors(toast.type || 'info') : null;
 
 	return (
 		<ToastContext.Provider value={{ showToast }}>
 			{children}
-			{toast && (
+			{toast && toastColors && (
 				<Animated.View
 					style={[
 						styles.toastContainer,
@@ -116,16 +123,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 						style={[
 							styles.toast,
 							{
-								backgroundColor: getColors(toast.type || 'info').bg,
+								backgroundColor: toastColors.bg,
 							},
 						]}
 					>
-						<Icon
-							source={getIcon(toast.type || 'info')}
+						<AppIcon
+							name={getIcon(toast.type || 'info')}
 							size={22}
-							color={getColors(toast.type || 'info').icon}
+							color={toastColors.icon}
 						/>
-						<Text style={styles.toastText}>{toast.message}</Text>
+						<Text style={[styles.toastText, { color: toastColors.text }]}>
+							{toast.message}
+						</Text>
 					</View>
 				</Animated.View>
 			)}
@@ -155,7 +164,6 @@ const styles = StyleSheet.create({
 		elevation: 8,
 	},
 	toastText: {
-		color: '#fff',
 		fontSize: 15,
 		fontWeight: '700',
 		flex: 1,

@@ -1,15 +1,22 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TAuthUser, ChatMessage, TRoomData } from './types';
 import NetInfo from '@react-native-community/netinfo';
+import * as messageStore from './db/messageStore';
+import type { PendingMessage } from './db/messageStore.types';
 
-// Storage keys
+export type { PendingMessage };
+
+// Storage keys (prefs / small blobs stay on AsyncStorage)
 const STORAGE_KEYS = {
   USER_DATA: 'offline_user_data',
   ROOMS_DATA: 'offline_rooms_data',
+  /** @deprecated Migrated to SQLite once; kept only for one-time import. */
   MESSAGES_DATA: 'offline_messages_data',
   LAST_SYNC_TIME: 'last_sync_time',
+  /** @deprecated Migrated to SQLite once; kept only for one-time import. */
   OFFLINE_MESSAGES: 'offline_pending_messages',
-  IS_OFFLINE_MODE: 'is_offline_mode'
+  IS_OFFLINE_MODE: 'is_offline_mode',
+  SQLITE_MIGRATED: 'offline_sqlite_migrated_v1',
 };
 
 export interface OfflineUserData {
@@ -26,17 +33,15 @@ export interface OfflineMessageData {
   [roomId: string]: ChatMessage[];
 }
 
-export interface PendingMessage {
-  id: string;
-  roomId: string;
-  message: ChatMessage;
-  timestamp: number;
-  retryCount: number;
-}
-
 class OfflineStorageService {
   private isOnline: boolean = true;
+  private wasOnline: boolean = true;
   private syncInProgress: boolean = false;
+  private syncHandler: (() => Promise<void>) | null = null;
+  private sqliteReady: Promise<void> | null = null;
+  private lastUserPayload: string | null = null;
+  private lastRoomsPayload: string | null = null;
+  private offlineModeCache: boolean | null = null;
 
   constructor() {
     this.initializeNetworkListener();
@@ -44,18 +49,79 @@ class OfflineStorageService {
 
   private initializeNetworkListener() {
     NetInfo.addEventListener(state => {
-      this.isOnline = state.isConnected ?? false;
-      console.log('Network status changed:', this.isOnline ? 'Online' : 'Offline');
-      
-      if (this.isOnline && this.syncInProgress === false) {
-        this.syncPendingData();
+      const isOnline = state.isConnected ?? false;
+      const reconnected = !this.wasOnline && isOnline;
+      this.wasOnline = isOnline;
+      this.isOnline = isOnline;
+
+      if (reconnected && this.syncInProgress === false) {
+        void this.syncPendingData();
       }
     });
+  }
+
+  setSyncHandler(handler: (() => Promise<void>) | null): void {
+    this.syncHandler = handler;
+  }
+
+  private async ensureSqliteReady(): Promise<void> {
+    if (!this.sqliteReady) {
+      this.sqliteReady = this.migrateAsyncStorageMessagesIfNeeded().catch((error) => {
+        this.sqliteReady = null;
+        throw error;
+      });
+    }
+    await this.sqliteReady;
+  }
+
+  private async migrateAsyncStorageMessagesIfNeeded(): Promise<void> {
+    try {
+      const migrated = await AsyncStorage.getItem(STORAGE_KEYS.SQLITE_MIGRATED);
+      if (migrated === '1') {
+        return;
+      }
+
+      const [messagesDataString, pendingMessagesString] = await Promise.all([
+        AsyncStorage.getItem(STORAGE_KEYS.MESSAGES_DATA),
+        AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_MESSAGES),
+      ]);
+
+      if (messagesDataString) {
+        const messagesData = JSON.parse(messagesDataString) as OfflineMessageData;
+        await messageStore.replaceAllMessagesData(messagesData);
+      }
+
+      if (pendingMessagesString) {
+        const pendingMessages = JSON.parse(pendingMessagesString) as PendingMessage[];
+        await messageStore.replacePendingMessages(pendingMessages);
+      }
+
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.MESSAGES_DATA,
+        STORAGE_KEYS.OFFLINE_MESSAGES,
+      ]);
+      await AsyncStorage.setItem(STORAGE_KEYS.SQLITE_MIGRATED, '1');
+      console.log('Migrated offline messages from AsyncStorage to SQLite');
+    } catch (error) {
+      console.error('Failed to migrate offline messages to SQLite:', error);
+      // Still mark ready path usable; empty SQLite is better than blocking the app.
+      try {
+        await AsyncStorage.setItem(STORAGE_KEYS.SQLITE_MIGRATED, '1');
+      } catch {
+        // ignore
+      }
+    }
   }
 
   // User data storage
   async saveUserData(user: TAuthUser): Promise<void> {
     try {
+      const userPayload = JSON.stringify(user);
+      if (userPayload === this.lastUserPayload) {
+        return;
+      }
+      this.lastUserPayload = userPayload;
+
       const offlineUserData: OfflineUserData = {
         user,
         lastLoginTime: Date.now(),
@@ -64,7 +130,12 @@ class OfflineStorageService {
       
       await AsyncStorage.setItem(STORAGE_KEYS.USER_DATA, JSON.stringify(offlineUserData));
       await AsyncStorage.setItem(STORAGE_KEYS.LAST_SYNC_TIME, Date.now().toString());
-      console.log('User data saved offline');
+      if (user.rooms?.length) {
+        await this.saveRoomsData(
+          Object.fromEntries(user.rooms.map((room) => [room.roomId, room])),
+          { silent: true }
+        );
+      }
     } catch (error) {
       console.error('Failed to save user data offline:', error);
     }
@@ -74,7 +145,9 @@ class OfflineStorageService {
     try {
       const userDataString = await AsyncStorage.getItem(STORAGE_KEYS.USER_DATA);
       if (userDataString) {
-        return JSON.parse(userDataString);
+        const parsed = JSON.parse(userDataString) as OfflineUserData;
+        this.lastUserPayload = JSON.stringify(parsed.user);
+        return parsed;
       }
       return null;
     } catch (error) {
@@ -85,10 +158,17 @@ class OfflineStorageService {
 
   async clearUserData(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.USER_DATA);
-      await AsyncStorage.removeItem(STORAGE_KEYS.ROOMS_DATA);
-      await AsyncStorage.removeItem(STORAGE_KEYS.MESSAGES_DATA);
-      await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_MESSAGES);
+      await this.ensureSqliteReady();
+      this.lastUserPayload = null;
+      this.lastRoomsPayload = null;
+      this.offlineModeCache = null;
+      await AsyncStorage.multiRemove([
+        STORAGE_KEYS.USER_DATA,
+        STORAGE_KEYS.ROOMS_DATA,
+        STORAGE_KEYS.MESSAGES_DATA,
+        STORAGE_KEYS.OFFLINE_MESSAGES,
+      ]);
+      await messageStore.clearAllMessageData();
       console.log('User data cleared from offline storage');
     } catch (error) {
       console.error('Failed to clear user data:', error);
@@ -96,10 +176,17 @@ class OfflineStorageService {
   }
 
   // Room data storage
-  async saveRoomsData(rooms: { [roomId: string]: TRoomData }): Promise<void> {
+  async saveRoomsData(
+    rooms: { [roomId: string]: TRoomData },
+    options: { silent?: boolean } = {}
+  ): Promise<void> {
     try {
-      await AsyncStorage.setItem(STORAGE_KEYS.ROOMS_DATA, JSON.stringify(rooms));
-      console.log('Rooms data saved offline');
+      const payload = JSON.stringify(rooms);
+      if (payload === this.lastRoomsPayload) {
+        return;
+      }
+      this.lastRoomsPayload = payload;
+      await AsyncStorage.setItem(STORAGE_KEYS.ROOMS_DATA, payload);
     } catch (error) {
       console.error('Failed to save rooms data offline:', error);
     }
@@ -109,6 +196,7 @@ class OfflineStorageService {
     try {
       const roomsDataString = await AsyncStorage.getItem(STORAGE_KEYS.ROOMS_DATA);
       if (roomsDataString) {
+        this.lastRoomsPayload = roomsDataString;
         return JSON.parse(roomsDataString);
       }
       return null;
@@ -118,20 +206,11 @@ class OfflineStorageService {
     }
   }
 
-  // Message storage for offline access
+  // Message storage for offline access (SQLite)
   async saveMessagesForRoom(roomId: string, messages: ChatMessage[]): Promise<void> {
     try {
-      const existingMessages = await this.getMessagesForRoom(roomId) || [];
-      const allMessages = [...existingMessages, ...messages];
-      
-      // Keep only the last 100 messages per room to manage storage
-      const recentMessages = allMessages.slice(-100);
-      
-      const messagesData = await this.getAllMessagesData();
-      messagesData[roomId] = recentMessages;
-      
-      await AsyncStorage.setItem(STORAGE_KEYS.MESSAGES_DATA, JSON.stringify(messagesData));
-      console.log(`Messages saved offline for room ${roomId}`);
+      await this.ensureSqliteReady();
+      await messageStore.saveMessagesForRoom(roomId, messages);
     } catch (error) {
       console.error('Failed to save messages offline:', error);
     }
@@ -139,8 +218,8 @@ class OfflineStorageService {
 
   async getMessagesForRoom(roomId: string): Promise<ChatMessage[] | null> {
     try {
-      const messagesData = await this.getAllMessagesData();
-      return messagesData[roomId] || null;
+      await this.ensureSqliteReady();
+      return await messageStore.getMessagesForRoom(roomId);
     } catch (error) {
       console.error('Failed to get messages from offline storage:', error);
       return null;
@@ -149,32 +228,19 @@ class OfflineStorageService {
 
   async getAllMessagesData(): Promise<OfflineMessageData> {
     try {
-      const messagesDataString = await AsyncStorage.getItem(STORAGE_KEYS.MESSAGES_DATA);
-      if (messagesDataString) {
-        return JSON.parse(messagesDataString);
-      }
-      return {};
+      await this.ensureSqliteReady();
+      return await messageStore.getAllMessagesData();
     } catch (error) {
       console.error('Failed to get all messages data:', error);
       return {};
     }
   }
 
-  // Pending messages for when offline
+  // Pending messages for when offline (SQLite)
   async savePendingMessage(message: ChatMessage): Promise<void> {
     try {
-      const pendingMessages = await this.getPendingMessages();
-      const pendingMessage: PendingMessage = {
-        id: message.id.toString(),
-        roomId: message.roomId,
-        message,
-        timestamp: Date.now(),
-        retryCount: 0
-      };
-      
-      pendingMessages.push(pendingMessage);
-      await AsyncStorage.setItem(STORAGE_KEYS.OFFLINE_MESSAGES, JSON.stringify(pendingMessages));
-      console.log('Message saved as pending for offline sync');
+      await this.ensureSqliteReady();
+      await messageStore.savePendingMessage(message);
     } catch (error) {
       console.error('Failed to save pending message:', error);
     }
@@ -182,11 +248,8 @@ class OfflineStorageService {
 
   async getPendingMessages(): Promise<PendingMessage[]> {
     try {
-      const pendingMessagesString = await AsyncStorage.getItem(STORAGE_KEYS.OFFLINE_MESSAGES);
-      if (pendingMessagesString) {
-        return JSON.parse(pendingMessagesString);
-      }
-      return [];
+      await this.ensureSqliteReady();
+      return await messageStore.getPendingMessages();
     } catch (error) {
       console.error('Failed to get pending messages:', error);
       return [];
@@ -195,18 +258,40 @@ class OfflineStorageService {
 
   async clearPendingMessages(): Promise<void> {
     try {
-      await AsyncStorage.removeItem(STORAGE_KEYS.OFFLINE_MESSAGES);
+      await this.ensureSqliteReady();
+      await messageStore.clearPendingMessages();
       console.log('Pending messages cleared');
     } catch (error) {
       console.error('Failed to clear pending messages:', error);
     }
   }
 
+  async removePendingMessage(messageId: string): Promise<void> {
+    try {
+      await this.ensureSqliteReady();
+      await messageStore.removePendingMessage(messageId);
+    } catch (error) {
+      console.error('Failed to remove pending message:', error);
+    }
+  }
+
+  async incrementPendingRetry(messageId: string): Promise<void> {
+    try {
+      await this.ensureSqliteReady();
+      await messageStore.incrementPendingRetry(messageId);
+    } catch (error) {
+      console.error('Failed to increment pending retry count:', error);
+    }
+  }
+
   // Offline mode management
   async setOfflineMode(isOffline: boolean): Promise<void> {
     try {
+      if (this.offlineModeCache === isOffline) {
+        return;
+      }
+      this.offlineModeCache = isOffline;
       await AsyncStorage.setItem(STORAGE_KEYS.IS_OFFLINE_MODE, isOffline.toString());
-      console.log('Offline mode set to:', isOffline);
     } catch (error) {
       console.error('Failed to set offline mode:', error);
     }
@@ -248,17 +333,12 @@ class OfflineStorageService {
 
   // Sync pending data when back online
   async syncPendingData(): Promise<void> {
-    if (this.syncInProgress || !this.isOnline) return;
+    if (this.syncInProgress || !this.isOnline || !this.syncHandler) return;
     
     this.syncInProgress = true;
-    console.log('Starting offline data sync...');
     
     try {
-      // This would be implemented based on your backend sync requirements
-      // For now, we'll just clear pending messages and update sync time
-      await this.clearPendingMessages();
-      await this.updateLastSyncTime();
-      console.log('Offline data sync completed');
+      await this.syncHandler();
     } catch (error) {
       console.error('Failed to sync offline data:', error);
     } finally {

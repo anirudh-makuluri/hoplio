@@ -1,34 +1,66 @@
 import React, { useEffect, useState } from 'react';
-import { Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ActivityIndicator, Snackbar, Text, TextInput } from 'react-native-paper';
+import {
+	Image,
+	Keyboard,
+	KeyboardAvoidingView,
+	Platform,
+	ScrollView,
+	StyleSheet,
+	TouchableOpacity,
+	View,
+} from 'react-native';
+import { ActivityIndicator, Text, TextInput } from 'react-native-paper';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GoogleAuthProvider, User, createUserWithEmailAndPassword, signInWithCredential, signInWithEmailAndPassword } from '@firebase/auth';
-import { GoogleSignin } from '@react-native-google-signin/google-signin';
 import { useUser } from './providers';
 import BrandScreen from '~/components/BrandScreen';
+import CustomSnackbar from '~/components/CustomSnackbar';
 import { AppButton, AppCard } from '~/components/ui';
 import { auth } from '~/lib/firebase';
 import { customFetch } from '~/lib/utils';
 import { offlineStorage } from '~/lib/offlineStorage';
 import { useTheme } from '~/lib/themeContext';
 import { hapticError, hapticSuccess } from '~/lib/haptics';
+import { supportsGoogleSignIn } from '~/lib/runtime';
 
 export default function AuthPage() {
 	const { user, isLoading, isLoggingOut, login, loginOffline } = useUser();
 	const { colors } = useTheme();
-	const [isSignIn, setSignIn] = useState(true);
+	const insets = useSafeAreaInsets();
+	const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+	const [isSignIn, setSignIn] = useState(false);
 	const [email, setEmail] = useState('');
 	const [password, setPassword] = useState('');
 	const [snackbarMsg, setSnackbarMsg] = useState('');
 	const [isAuthenticating, setIsAuthenticating] = useState(false);
 	const [hasOfflineData, setHasOfflineData] = useState(false);
+	const canUseGoogleSignIn = supportsGoogleSignIn();
 
 	useEffect(() => {
-		GoogleSignin.configure({
-			webClientId: '1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com',
-		});
+		const showEvent = Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow';
+		const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
+
+		const showSubscription = Keyboard.addListener(showEvent, () => setIsKeyboardVisible(true));
+		const hideSubscription = Keyboard.addListener(hideEvent, () => setIsKeyboardVisible(false));
+
+		return () => {
+			showSubscription.remove();
+			hideSubscription.remove();
+		};
 	}, []);
+
+	useEffect(() => {
+		if (!canUseGoogleSignIn) {
+			return;
+		}
+
+		void import('@react-native-google-signin/google-signin').then(({ GoogleSignin }) => {
+			GoogleSignin.configure({
+				webClientId: '1068380641937-tthsla89okh6stfi2epcjquqfm4b94tl.apps.googleusercontent.com',
+			});
+		});
+	}, [canUseGoogleSignIn]);
 
 	useEffect(() => {
 		if (user && !isLoading && !isLoggingOut) {
@@ -95,10 +127,16 @@ export default function AuthPage() {
 	};
 
 	const authWithGoogle = async () => {
+		if (!canUseGoogleSignIn) {
+			showError('Google Sign-In requires a custom dev build. Use email/password in Expo Go.');
+			return;
+		}
+
 		setIsAuthenticating(true);
 		setSnackbarMsg('');
 
 		try {
+			const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
 			await GoogleSignin.hasPlayServices();
 			const response = await GoogleSignin.signIn();
 			const idToken = response.idToken ?? (response as { data?: { idToken?: string } }).data?.idToken;
@@ -167,18 +205,33 @@ export default function AuthPage() {
 		}
 	};
 
+	if (isLoading || (user && !isLoggingOut)) {
+		return null;
+	}
+
 	return (
 		<BrandScreen contentStyle={styles.content}>
-			<SafeAreaView style={styles.safeArea}>
-				<ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+			<KeyboardAvoidingView
+				style={styles.safeArea}
+				behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+				
+				keyboardVerticalOffset={insets.top}
+			>
+				<SafeAreaView style={styles.safeArea}>
+					<ScrollView
+						contentContainerStyle={[
+							styles.scrollContent,
+							isKeyboardVisible && styles.scrollContentKeyboardOpen,
+						]}
+						keyboardShouldPersistTaps="handled"
+						automaticallyAdjustKeyboardInsets
+						showsVerticalScrollIndicator={false}
+					>
 					<View style={styles.hero}>
-						<View style={[styles.badge, { backgroundColor: colors.primary + '22', borderColor: colors.primary }]}>
-							<Text style={[styles.badgeText, { color: colors.primaryDark }]}>Private by default</Text>
-						</View>
 						<View style={[styles.logoWrap, { backgroundColor: colors.surface, borderColor: colors.border }]}>
 							<Image source={require('../assets/icon.png')} style={styles.logo} resizeMode="contain" />
 						</View>
-						<Text style={[styles.wordmark, { color: colors.primaryDark }]}>hoplio</Text>
+						<Text style={[styles.wordmark, { color: colors.primaryDark }]}>Hoplio</Text>
 						<Text style={[styles.title, { color: colors.text }]}>
 							{isSignIn ? 'Welcome back!' : 'Join the fun'}
 						</Text>
@@ -229,22 +282,26 @@ export default function AuthPage() {
 									</>
 								)}
 
-								<AppButton
-									variant="accent"
-									onPress={authWithGoogle}
-									disabled={isAuthenticating}
-									icon="google"
-									fullWidth
-									style={styles.stackGap}
-								>
-									{isSignIn ? 'Continue with Google' : 'Sign up with Google'}
-								</AppButton>
+								{canUseGoogleSignIn ? (
+									<>
+										<AppButton
+											variant="accent"
+											onPress={authWithGoogle}
+											disabled={isAuthenticating}
+											icon="google"
+											fullWidth
+											style={styles.stackGap}
+										>
+											{isSignIn ? 'Continue with Google' : 'Sign up with Google'}
+										</AppButton>
 
-								<View style={styles.dividerRow}>
-									<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-									<Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR</Text>
-									<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-								</View>
+										<View style={styles.dividerRow}>
+											<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+											<Text style={[styles.dividerText, { color: colors.textSecondary }]}>OR</Text>
+											<View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
+										</View>
+									</>
+								) : null}
 
 								<TextInput
 									label="Email"
@@ -303,17 +360,11 @@ export default function AuthPage() {
 							</>
 						)}
 					</AppCard>
-				</ScrollView>
-			</SafeAreaView>
+					</ScrollView>
+				</SafeAreaView>
+			</KeyboardAvoidingView>
 
-			<Snackbar
-				visible={snackbarMsg.length > 0}
-				duration={5000}
-				onDismiss={() => setSnackbarMsg('')}
-				style={[styles.snackbar, { backgroundColor: colors.surfaceElevated }]}
-			>
-				{snackbarMsg}
-			</Snackbar>
+			<CustomSnackbar snackbarMsg={snackbarMsg} setSnackbarMsg={setSnackbarMsg} />
 		</BrandScreen>
 	);
 }
@@ -330,6 +381,10 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 4,
 		paddingVertical: 18,
 		justifyContent: 'center',
+	},
+	scrollContentKeyboardOpen: {
+		justifyContent: 'flex-start',
+		paddingBottom: 24,
 	},
 	hero: {
 		alignItems: 'center',
@@ -362,8 +417,6 @@ const styles = StyleSheet.create({
 	wordmark: {
 		fontSize: 17,
 		fontWeight: '800',
-		letterSpacing: 1.1,
-		textTransform: 'lowercase',
 		marginBottom: 8,
 	},
 	title: {
@@ -434,8 +487,5 @@ const styles = StyleSheet.create({
 		fontSize: 12,
 		textAlign: 'center',
 		lineHeight: 18,
-	},
-	snackbar: {
-		borderRadius: 12,
 	},
 });

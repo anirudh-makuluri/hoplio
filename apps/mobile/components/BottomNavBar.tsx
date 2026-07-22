@@ -1,5 +1,6 @@
 import { View, StyleSheet } from 'react-native';
-import { Text, Icon, Badge } from 'react-native-paper';
+import { Text, Badge } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useTheme } from '~/lib/themeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import PressableScale from '~/components/ui/PressableScale';
@@ -54,7 +55,7 @@ export default function BottomNavBar({
 							key={tab.id}
 							style={styles.tab}
 							haptic="none"
-							scaleTo={0.94}
+							scaleTo={1}
 							onPress={() => {
 								void hapticSelection();
 								onTabChange(tab.id);
@@ -68,8 +69,8 @@ export default function BottomNavBar({
 									},
 								]}
 							>
-								<Icon
-									source={isActive ? tab.activeIcon : tab.icon}
+								<AppIcon
+									name={isActive ? tab.activeIcon : tab.icon}
 									size={24}
 									color={isActive ? colors.primaryDark : colors.textSecondary}
 								/>
@@ -117,8 +118,9 @@ const styles = StyleSheet.create({
 		position: 'relative',
 		paddingHorizontal: 16,
 		paddingVertical: 6,
-		borderRadius: 16,
+		borderRadius: 999,
 		marginBottom: 2,
+		overflow: 'hidden',
 	},
 	badge: {
 		position: 'absolute',

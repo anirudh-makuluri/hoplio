@@ -16,13 +16,16 @@ export default function Index() {
 	useEffect(() => {
 		if (isLoading) return;
 
-		if (user) {
-			router.replace('/home');
-		} else {
-			router.replace('/auth');
-		}
+		const navigate = async () => {
+			if (user) {
+				router.replace('/home');
+			} else {
+				router.replace('/auth');
+			}
+			await SplashScreen.hideAsync();
+		};
 
-		void SplashScreen.hideAsync();
+		void navigate();
 	}, [isLoading, user]);
 
 	const navigateToNextPage = () => {
@@ -31,7 +34,7 @@ export default function Index() {
 		router.push('/auth');
 	};
 
-	if (isLoading) return null;
+	if (isLoading || user) return null;
 
 	return (
 		<BrandScreen contentStyle={styles.screenContent}>

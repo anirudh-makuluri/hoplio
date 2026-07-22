@@ -4,7 +4,7 @@ import { Avatar, Text } from 'react-native-paper';
 import { useUser } from '~/app/providers';
 import { TRoomData, TUser } from '~/lib/types';
 import { genRoomId } from '~/lib/utils';
-import { joinChatRoom } from '~/redux/chatSlice';
+import { joinChatRoomWithCache } from '~/redux/chatThunks';
 import { joinSocketRoom } from '~/redux/socketSlice';
 import { useAppDispatch, useAppSelector } from '~/redux/store';
 import { useTheme } from '~/lib/themeContext';
@@ -55,7 +55,7 @@ export default function FriendRequest({ invitedUser }: { invitedUser: TUser }) {
 						};
 						rooms.push(newRoomData);
 						dispatch(joinSocketRoom(newRoomId));
-						dispatch(joinChatRoom(newRoomData));
+						dispatch(joinChatRoomWithCache(newRoomData));
 					}
 
 					updateUser({

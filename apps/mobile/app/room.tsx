@@ -1,11 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
-import { FlatList, Image, View, Alert, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import {
+	FlatList,
+	Image,
+	View,
+	Alert,
+	ScrollView,
+	StyleSheet,
+	TouchableOpacity,
+} from 'react-native';
 import {
 	Avatar,
 	Button,
 	Text,
 	TextInput,
-	Icon,
 	ActivityIndicator,
 	IconButton,
 	Menu,
@@ -14,6 +21,7 @@ import {
 	ProgressBar,
 	Divider,
 } from 'react-native-paper';
+import AppIcon from '~/components/ui/AppIcon';
 import { useUser } from '~/app/providers';
 import { ChatMessage } from '~/lib/types';
 import { setActiveRoomId, setLoadingMore, setOfflineMode } from '~/redux/chatSlice';
@@ -32,7 +40,8 @@ import ScheduleMessageDialog from '../components/ScheduleMessageDialog';
 import ScheduledMessagesList from '../components/ScheduledMessagesList';
 import SemanticSearchSheet from '../components/SemanticSearchSheet';
 import { router } from 'expo-router';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { KeyboardStickyView } from 'react-native-keyboard-controller';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { formatLastSeen, uploadFile } from '~/lib/utils';
@@ -52,9 +61,12 @@ export default function Room() {
 	const userPresence = useAppSelector((state) => state.chat.userPresence);
 	const isOffline = useAppSelector((state) => state.chat.isOffline);
 	const textInputRef = useRef<any>(null);
+	const flatListRef = useRef<FlatList>(null);
 
 	const dispatch = useAppDispatch();
+	const insets = useSafeAreaInsets();
 	const { colors } = useAppTheme();
+	const [composerHeight, setComposerHeight] = useState(0);
 	const { showToast } = useToast();
 	const e2eeError = useE2EEError();
 	const isAIRoom = activeRoom?.is_ai_room || activeChatRoomId.startsWith('ai-assistant-');
@@ -397,7 +409,7 @@ export default function Room() {
 	};
 
 	return (
-		<SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
+		<SafeAreaView edges={['top', 'left', 'right']} style={[styles.container, { backgroundColor: colors.background }]}>
 			<View style={[styles.content, { backgroundColor: colors.background }]}>
 				{/* Header */}
 				<View style={[styles.headerOuter, { backgroundColor: colors.surface, borderBottomColor: colors.border }]}>
@@ -409,7 +421,7 @@ export default function Room() {
 							}}
 							style={styles.backButton}
 						>
-							<Icon source="chevron-left" size={28} color={colors.text} />
+							<AppIcon name="chevron-left" size={28} color={colors.text} />
 						</TouchableOpacity>
 
 						<TouchableOpacity
@@ -424,7 +436,7 @@ export default function Room() {
 									</Text>
 									{userIsOffline && (
 										<View style={[styles.offlineBadge, { backgroundColor: colors.destructive }]}>
-											<Icon source="wifi-off" size={10} color="#fff" />
+											<AppIcon name="wifi-off" size={10} color="#fff" />
 										</View>
 									)}
 								</View>
@@ -510,16 +522,25 @@ export default function Room() {
 					</View>
 				</View>
 
-				{/* Messages */}
 				<FlatList
+					ref={flatListRef}
 					data={activeRoom.messages}
 					renderItem={({ item }) => <ChatBubble message={item} isGroup={activeRoom.is_group} roomId={activeChatRoomId} />}
 					ListHeaderComponent={renderListHeader}
 					inverted={false}
-					contentContainerStyle={styles.messageList}
+					style={styles.messageListContainer}
+					contentContainerStyle={[styles.messageList, { paddingBottom: composerHeight + insets.bottom + 8 }]}
 					showsVerticalScrollIndicator={false}
+					keyboardShouldPersistTaps="handled"
+					keyboardDismissMode="interactive"
 				/>
 
+				<KeyboardStickyView
+					style={styles.composerDock}
+					offset={{ closed: -insets.bottom, opened: 0 }}
+					onLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+				>
+				<View style={{ backgroundColor: colors.surface }}>
 				{/* Upload Progress */}
 				{uploading && (
 					<View style={[styles.uploadBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
@@ -562,7 +583,7 @@ export default function Room() {
 
 				{secureSendEnabled && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="lock-outline" size={16} color={colors.primary} />
+						<AppIcon name="lock-outline" size={16} color={colors.primary} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>
 							Your next text message will be encrypted on this device.
 						</Text>
@@ -571,14 +592,14 @@ export default function Room() {
 
 				{aiDisabledReason && !isAIRoom && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="shield-lock-outline" size={16} color={colors.primary} />
+						<AppIcon name="shield-lock-outline" size={16} color={colors.primary} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{aiDisabledReason}</Text>
 					</View>
 				)}
 
 				{e2eeError && (
 					<View style={[styles.infoBar, { backgroundColor: colors.surface, borderTopColor: colors.border }]}>
-						<Icon source="alert-circle-outline" size={16} color={colors.destructive} />
+						<AppIcon name="alert-circle-outline" size={16} color={colors.destructive} />
 						<Text style={[styles.infoText, { color: colors.textSecondary }]}>{e2eeError}</Text>
 					</View>
 				)}
@@ -586,7 +607,7 @@ export default function Room() {
 				{/* Offline Indicator */}
 				{userIsOffline && (
 					<View style={[styles.offlineBar, { backgroundColor: colors.warning }]}>
-						<Icon source="wifi-off" size={16} color={colors.accentForeground} />
+						<AppIcon name="wifi-off" size={16} color={colors.accentForeground} />
 						<Text style={[styles.offlineText, { color: colors.accentForeground }]}>
 							You're offline. Messages will sync when connected.
 						</Text>
@@ -662,6 +683,8 @@ export default function Room() {
 						/>
 					</View>
 				</View>
+				</View>
+				</KeyboardStickyView>
 			</View>
 
 			{/* Dialogs */}
@@ -778,6 +801,16 @@ const styles = StyleSheet.create({
 		paddingBottom: 10,
 		lineHeight: 18,
 	},
+	messageListContainer: {
+		flex: 1,
+		minHeight: 0,
+	},
+	composerDock: {
+		position: 'absolute',
+		left: 0,
+		right: 0,
+		bottom: 0,
+	},
 	messageList: {
 		paddingHorizontal: 8,
 		paddingBottom: 8,
@@ -869,6 +902,7 @@ const styles = StyleSheet.create({
 		borderRadius: 18,
 	},
 	inputWrapper: {
+		height: 50,
 		flex: 1,
 		flexDirection: 'row',
 		alignItems: 'center',
